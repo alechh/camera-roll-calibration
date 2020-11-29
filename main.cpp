@@ -12,10 +12,11 @@ using namespace std;
 
 
 /** Simple optical flow: Rarneback method
-
-@param path -- path to the video file. 0 means that the video will be read from the webcam.
-@param resize -- image resizing factor.
-*/
+ *
+ * @tparam T
+ * @param path -- path to the video file. 0 means that the video will be read from the webcam.
+ * @param resize -- image resizing factor.
+ */
 template <class T>
 void Rarneback(T path, double resize = 1)
 {
@@ -83,10 +84,11 @@ void Rarneback(T path, double resize = 1)
 
 
 /** Simple optical flow: Lucas-Canade method
-
-@param path -- path to the video file. 0 means that the video will be read from the webcam.
-@param resize -- image resizing factor.
-*/
+ *
+ * @tparam T
+ * @param path -- path to the video file. 0 means that the video will be read from the webcam.
+ * @param resize -- image resizing factor.
+ */
 template <class T>
 void Lucas_Canade(T path, double resize = 1)
 {
@@ -175,6 +177,89 @@ void Lucas_Canade(T path, double resize = 1)
 }
 
 
+/** Function for sorting contours from biggest to smallest, used in the Contours_Detection method
+ *
+ * @param contour1
+ * @param contour2
+ * @return true, if the area of the contour1 bigger than the area of the contour2. Else return false.
+ */
+bool compareContourAreas(std::vector<cv::Point> contour1, std::vector<cv::Point> contour2)
+{
+    cv::Rect rect1 = cv::boundingRect(contour1);
+    cv::Rect rect2 = cv::boundingRect(contour2);
+    return (rect1.area() > rect2.area());
+}
+
+/** Tracking and edge contours on video
+ *
+ * @tparam T
+ * @param path -- path to the video file. 0 means that the video will be read from the webcam.
+ * @param resize -- image resizing factor.
+ */
+template <class T>
+void Contours_Detection(T path, double resize = 1)
+{
+    VideoCapture capture(path);
+    if (!capture.isOpened())
+    {
+        cerr<<"Error"<<endl;
+        return;
+    }
+
+    Mat img;
+    while (true)
+    {
+        capture >> img;
+        //Mat drawing = img.clone();
+        Mat drawing = Mat::zeros(img.size(), CV_8UC3);
+        Mat source = img.clone();
+
+        if (resize != 1)
+        {
+            cv::resize(source, source, cv::Size(), resize, resize);
+        }
+        imshow("Source", source);
+
+        cv::GaussianBlur(img, img, Size(3,3), 3);
+        Mat element = getStructuringElement(MORPH_CROSS, Size(3, 3), Point(1, 1));
+        morphologyEx(img, img, MORPH_GRADIENT, element);
+
+        cvtColor(img, img, COLOR_BGR2GRAY);
+
+        vector< vector<Point> > contours;
+        vector<Vec4i> hierarchy;
+
+        Canny(img, img, 20, 100, 3);
+        findContours(img, contours, hierarchy, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE, Point(0, 0));
+
+        //sort(contours.begin(), contours.end(), compareContourAreas); // sort contours from biggest to smallest
+
+        for (int i = 0; i < contours.size(); i++)
+        {
+            Rect brect = boundingRect(contours[i]);
+            if (brect.area() < 1000)
+            {
+                continue;
+            }
+
+            drawContours(drawing, contours, i, CV_RGB(255,0,0), 1, 8, hierarchy, 0, Point());
+        }
+
+        if (resize != 1)
+        {
+            cv::resize(drawing, drawing, cv::Size(), resize, resize);
+        }
+        imshow("Contours", drawing);
+
+        int k = waitKey(25);
+        if (k == 27)
+        {
+            break;
+        }
+    }
+}
+
+
 int main()
 {
     string PATH_test = "../videos/test.AVI";
@@ -184,5 +269,6 @@ int main()
     string PATH_road3 = "../videos/road3.mp4";
 
     //Rarneback(PATH_road, 0.4);
-    Lucas_Canade(PATH_road2, 0.4);
+    //Lucas_Canade(PATH_road2, 0.4);
+    Contours_Detection(PATH_road2, 0.4);
 }
