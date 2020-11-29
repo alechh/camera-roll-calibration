@@ -261,6 +261,39 @@ void Contours_Detection(T path, double resize = 1)
 }
 
 
+/** Finding the intersection of lines
+ *
+ * @param src -- Input image
+ * @param lines -- set of lines (<rho, theta>)
+ */
+void intersection_search(Mat &src, set< tuple<double, double> > lines)
+{
+    float rho1, theta1, rho2, theta2;
+    Point pt;
+    set< tuple<double, double> >::iterator i,j;
+    for (i = lines.begin(); i != lines.end(); i++)
+    {
+        for (j = i; j != lines.end(); j++)
+        {
+            rho1 = get<0>(*i);
+            rho2 = get<0>(*j);
+            theta1 = get<1>(*i);
+            theta2 = get<1>(*j);
+            pt.x = (sin(theta2) * rho1 - sin(theta1) * rho2) / (cos(theta1) * sin(theta2) - sin(theta1) * cos(theta2));
+            pt.y = (-cos(theta2) * rho1 + cos(theta1) * rho2) / (cos(theta1) * sin(theta2) - sin(theta1) * cos(theta2));
+            if (0 < pt.x && pt.x < src.cols && 0 < pt.y && pt.y < src.rows)
+            {
+                circle(src,pt, 5, Scalar(0,255,0),5);
+            }
+            else
+            {
+                cout<<"("<<pt.x<<";"<<pt.y<<")"<<endl;
+            }
+        }
+    }
+}
+
+
 /** Search for vertical straight lines on video using the Hough method
  *
  * @param src -- Input image.
@@ -274,6 +307,7 @@ void find_lines_Hough(Mat &src, double resize = 1, int delta = 300)
     Canny(src, dst, 50, 550, 3);
 
     vector<Vec2f> lines;
+    set< tuple<double, double> > vertical_lines;
 
     HoughLines(dst, lines, 1, CV_PI/180, 150, 0, 0);
 
@@ -301,8 +335,10 @@ void find_lines_Hough(Mat &src, double resize = 1, int delta = 300)
         if (abs(pt1.x - pt2.x) < delta)
         {
             line(src, pt1, pt2, CV_RGB(255,0,0), 2, CV_AA);
+            vertical_lines.insert(make_tuple(lines[i][0], lines[i][1]));
         }
     }
+    intersection_search(src, vertical_lines);
 }
 
 
