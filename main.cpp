@@ -6,6 +6,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/videoio.hpp>
 #include <opencv2/video.hpp>
+#include <opencv2/imgproc/imgproc_c.h>
 
 using namespace cv;
 using namespace std;
@@ -179,11 +180,11 @@ void Lucas_Canade(T path, double resize = 1)
 
 /** Function for sorting contours from biggest to smallest, used in the Contours_Detection method
  *
- * @param contour1
- * @param contour2
+ * @param contour1.
+ * @param contour2.
  * @return true, if the area of the contour1 bigger than the area of the contour2. Else return false.
  */
-bool compareContourAreas(std::vector<cv::Point> contour1, std::vector<cv::Point> contour2)
+bool compareContourAreas(vector<Point> contour1, vector<Point> contour2)
 {
     cv::Rect rect1 = cv::boundingRect(contour1);
     cv::Rect rect2 = cv::boundingRect(contour2);
@@ -211,7 +212,7 @@ void Contours_Detection(T path, double resize = 1)
     {
         capture >> img;
         //Mat drawing = img.clone();
-        Mat drawing = Mat::zeros(img.size(), CV_8UC3);
+        Mat drawing = Mat::zeros(img.size(), CV_8UC3); // If you wanna see contours on the source video, comment this line and uncomment previous line
         Mat source = img.clone();
 
         if (resize != 1)
@@ -260,6 +261,88 @@ void Contours_Detection(T path, double resize = 1)
 }
 
 
+/** Search for vertical straight lines on video using the Hough method
+ *
+ * @param src -- Input image.
+ * @param resize -- image resizing factor.
+ * @param delta -- Coefficient by which it is determined that the line is straight. The larger it is, the more lines will be selected.
+ */
+void find_lines_Hough(Mat &src, double resize = 1, int delta = 300)
+{
+    Mat dst;
+    cvtColor(src,dst, COLOR_BGR2GRAY);
+    Canny(src, dst, 50, 550, 3);
+
+    vector<Vec2f> lines;
+
+    HoughLines(dst, lines, 1, CV_PI/180, 150, 0, 0);
+
+    cvtColor(dst, dst, COLOR_GRAY2BGR);
+
+    // draw lines
+    for (size_t i = 0; i < lines.size(); i++)
+    {
+        float rho,theta, a, b, x0, y0;
+        Point pt1, pt2;
+
+        rho = lines[i][0];
+        theta = lines[i][1];
+
+        a = cos(theta);
+        b = sin(theta);
+
+        x0 = a * rho;
+        y0 = b * rho;
+
+        pt1.x = cvRound(x0 - 1000 * b);
+        pt1.y = cvRound(y0 + 1000 * a);
+        pt2.x = cvRound(x0 + 1000 * b);
+        pt2.y = cvRound(y0 - 1000 * a);
+        if (abs(pt1.x - pt2.x) < delta)
+        {
+            line(src, pt1, pt2, CV_RGB(255,0,0), 2, CV_AA);
+        }
+    }
+}
+
+
+/** Function to test the function of finding straight vertical lines
+ *
+ * @tparam T
+ * @param path -- path to the video file. 0 means that the video will be read from the webcam.
+ * @param resize -- image resizing factor.
+ */
+template <class T>
+void simple_line_detection(T path, double resize = 1)
+{
+    VideoCapture capture(path);
+    if (!capture.isOpened())
+    {
+        cerr<<"Error"<<endl;
+        return;
+    }
+
+    Mat src;
+    while (true)
+    {
+        capture >> src;
+        find_lines_Hough(src);
+
+        if (resize != 1)
+        {
+            cv::resize(src, src, cv::Size(), resize, resize);
+        }
+        imshow("Lines", src);
+
+        int k = waitKey(25);
+        if (k == 27)
+        {
+            break;
+        }
+    }
+}
+
+
 int main()
 {
     string PATH_test = "../videos/test.AVI";
@@ -270,5 +353,6 @@ int main()
 
     //Rarneback(PATH_road, 0.4);
     //Lucas_Canade(PATH_road2, 0.4);
-    Contours_Detection(PATH_road2, 0.4);
+    //Contours_Detection(PATH_road2, 0.4);
+    simple_line_detection(PATH_road2, 0.4);
 }
