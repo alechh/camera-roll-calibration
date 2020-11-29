@@ -11,7 +11,7 @@ using namespace cv;
 using namespace std;
 
 
-/** Optical flow: Rarneback method
+/** Simple optical flow: Rarneback method
 
 @param path -- path to the video file. 0 means that the video will be read from the webcam.
 @param resize -- image resizing factor.
@@ -82,6 +82,99 @@ void Rarneback(T path, double resize = 1)
 }
 
 
+/** Simple optical flow: Lucas-Canade method
+
+@param path -- path to the video file. 0 means that the video will be read from the webcam.
+@param resize -- image resizing factor.
+*/
+template <class T>
+void Lucas_Canade(T path, double resize = 1)
+{
+    VideoCapture capture(path);
+
+    if (!capture.isOpened())
+    {
+        cerr << "Unable to open file!" << endl;
+        return;
+    }
+
+    std::vector<Scalar> colors;
+    RNG rng;
+    for (int i = 0; i < 100; i++)
+    {
+        int r = rng.uniform(0, 256);
+        int g = rng.uniform(0, 256);
+        int b = rng.uniform(0, 256);
+        colors.push_back(Scalar(r,g,b));
+    }
+
+    Mat old_frame, old_gray;
+    std::vector<Point2f> p0, p1;
+
+    capture >> old_frame;
+    cvtColor(old_frame, old_gray, COLOR_BGR2GRAY);
+    goodFeaturesToTrack(old_gray, p0, 100, 0.3, 7, Mat(), 7, false, 0.04);
+
+    // Create a mask image for drawing purposes
+    Mat mask = Mat::zeros(old_frame.size(), old_frame.type());
+
+/*    // Save result video
+    int frame_width = capture.get(CAP_PROP_FRAME_WIDTH);
+    int frame_height = capture.get(CAP_PROP_FRAME_HEIGHT);
+    VideoWriter video("outLucasCanade.avi",VideoWriter::fourcc('M','J','P','G'),10, Size(frame_width,frame_height),true);*/
+
+    while (true)
+    {
+        Mat frame, frame_gray;
+        capture >> frame;
+        if (frame.empty())
+        {
+            break;
+        }
+        cvtColor(frame, frame_gray, COLOR_BGR2GRAY);
+
+        std::vector<uchar> status;
+        std::vector<float> err;
+        //TermCriteria criteria = TermCriteria((TermCriteria::COUNT) + (TermCriteria::EPS), 10, 0.03);
+        calcOpticalFlowPyrLK(old_gray, frame_gray, p0, p1, status, err, Size(21,21), 5);
+
+        std::vector<Point2f> good_new;
+        for (uint i = 0; i < p0.size(); i++)
+        {
+            // Select good points
+            if (status[i] == 1)
+            {
+                good_new.push_back(p1[i]);
+                // draw the tracks
+                line(mask,p1[i], p0[i], colors[i], 2);
+                circle(frame, p1[i], 5, colors[i], -1);
+            }
+        }
+        Mat img;
+        add(frame, mask, img);
+
+        if (resize != 1)
+        {
+            cv::resize(img, img, cv::Size(), resize, resize);
+        }
+        imshow("Frame", img);
+
+/*        // Save video
+        video.write(img);*/
+
+        old_gray = frame_gray.clone();
+        p0 = good_new;
+
+        int k = waitKey(25);
+        if (k == 27)
+        {
+            return;
+        }
+
+    }
+}
+
+
 int main()
 {
     string PATH_test = "../videos/test.AVI";
@@ -90,5 +183,6 @@ int main()
     string PATH_road2 = "../videos/road2.mp4";
     string PATH_road3 = "../videos/road3.mp4";
 
-    Rarneback(PATH_road, 0.4);
+    //Rarneback(PATH_road, 0.4);
+    Lucas_Canade(PATH_road2, 0.4);
 }
