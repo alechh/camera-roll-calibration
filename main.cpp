@@ -19,7 +19,7 @@ using namespace std;
  * @param resize -- image resizing factor.
  */
 template <class T>
-void Rarneback(T path, double resize = 1)
+void simpleRarnebackMethod(T path, double resize = 1)
 {
     VideoCapture capture(path);
     if (!capture.isOpened())
@@ -91,7 +91,7 @@ void Rarneback(T path, double resize = 1)
  * @param resize -- image resizing factor.
  */
 template <class T>
-void Lucas_Canade(T path, double resize = 1)
+void simpleLucasCanadeMethod(T path, double resize = 1)
 {
     VideoCapture capture(path);
 
@@ -198,7 +198,7 @@ bool compareContourAreas(vector<Point> contour1, vector<Point> contour2)
  * @param resize -- image resizing factor.
  */
 template <class T>
-void Contours_Detection(T path, double resize = 1)
+void contoursDetection(T path, double resize = 1)
 {
     VideoCapture capture(path);
     if (!capture.isOpened())
@@ -266,7 +266,7 @@ void Contours_Detection(T path, double resize = 1)
  * @param src -- Input image
  * @param lines -- set of lines (<rho, theta>)
  */
-void intersection_search(Mat &src, set< tuple<double, double> > lines)
+void intersectionSearch(Mat &src, set< tuple<double, double> > lines)
 {
     float rho1, theta1, rho2, theta2;
     Point pt;
@@ -300,7 +300,7 @@ void intersection_search(Mat &src, set< tuple<double, double> > lines)
  * @param resize -- image resizing factor.
  * @param delta -- Coefficient by which it is determined that the line is straight. The larger it is, the more lines will be selected.
  */
-void find_lines_Hough(Mat &src, double resize = 1, int delta = 300)
+void findLinesHough(Mat &src, double resize = 1, int delta = 300)
 {
     Mat dst;
     cvtColor(src,dst, COLOR_BGR2GRAY);
@@ -338,7 +338,7 @@ void find_lines_Hough(Mat &src, double resize = 1, int delta = 300)
             vertical_lines.insert(make_tuple(lines[i][0], lines[i][1]));
         }
     }
-    intersection_search(src, vertical_lines);
+    intersectionSearch(src, vertical_lines);
 }
 
 
@@ -349,7 +349,7 @@ void find_lines_Hough(Mat &src, double resize = 1, int delta = 300)
  * @param resize -- image resizing factor.
  */
 template <class T>
-void simple_line_detection(T path, double resize = 1)
+void simpleLineDetection(T path, double resize = 1)
 {
     VideoCapture capture(path);
     if (!capture.isOpened())
@@ -362,7 +362,7 @@ void simple_line_detection(T path, double resize = 1)
     while (true)
     {
         capture >> src;
-        find_lines_Hough(src);
+        findLinesHough(src);
 
         if (resize != 1)
         {
@@ -387,8 +387,8 @@ int main()
     string PATH_road2 = "../videos/road2.mp4";
     string PATH_road3 = "../videos/road3.mp4";
 
-    //Rarneback(PATH_road, 0.4);
-    //Lucas_Canade(PATH_road2, 0.4);
-    //Contours_Detection(PATH_road2, 0.4);
-    simple_line_detection(PATH_road2, 0.4);
+    simpleRarnebackMethod(PATH_road, 0.4);
+    simpleLucasCanadeMethod(PATH_road2, 0.4);
+    contoursDetection(PATH_road2, 0.4);
+    simpleLineDetection(PATH_road2, 0.4);
 }
