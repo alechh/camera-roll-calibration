@@ -1,0 +1,31 @@
+dist: trusty
+sudo: required
+language:
+  - cpp
+compiler:
+  - gcc
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - gcc-9
+      - g++-9
+      - cmake
+before_install:
+  - mkdir $HOME/usr
+  - export PATH="$HOME/usr/bin:$PATH"
+  - wget https://github.com/Kitware/CMake/releases/download/v3.19.1/cmake-3.19.1-Linux-x86_64.sh
+  - chmod +x cmake-3.19.1-Linux-x86_64.sh
+  - ./cmake-3.19.1-Linux-x86_64.sh --prefix=$HOME/usr --exclude-subdir --skip-license
+
+before_script:
+  - mkdir build
+  - cd build
+  - cmake ..
+
+script:
+  - export CC=/usr/bin/gcc-9
+  - export CXX=/usr/bin/g++-9
+  - gcc -v && g++ -v && cmake --version
+  - make

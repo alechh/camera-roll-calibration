@@ -10,9 +10,9 @@ To run this code, you must create a __videos__ folder in the project directory, 
 To build the project you should run these commands in the project direcroty
  
 ``` 
-cmake .
+mkdir build && cd build
+cmake ..
 make      
-make install
 ```
 
 ### Video for testing
