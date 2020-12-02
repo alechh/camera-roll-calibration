@@ -5,6 +5,7 @@ To run this code, you must create a __videos__ folder in the project directory, 
 
 ### Requirements
 * CMake (>= 3.17)
+* OpenCV (>= 4.4.0)
 
 ### Build
 To build the project you should run these commands in the project direcroty
