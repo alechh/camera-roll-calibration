@@ -3,7 +3,7 @@ project(test_opencv)
 
 set(CMAKE_CXX_STANDARD 14)
 
-add_executable(test_opencv main.cpp)
+add_executable(test_opencv main.cpp SpaceKB.cpp SpaceKB.h)
 
 find_package( OpenCV REQUIRED )
 include_directories( ${OpenCV_INCLUDE_DIRS} )
