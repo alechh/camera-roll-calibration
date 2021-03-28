@@ -1,6 +1,3 @@
-//
-// Created by alechh on 07.03.2021.
-//
 #include <set>
 using namespace std;
 
@@ -8,13 +5,13 @@ using namespace std;
 #define TEST_OPENCV_SPACEKB_H
 
 
-class SpaceKB {
+class SpaceKB
+{
     set <tuple<double, double>> points;
 public:
-    SpaceKB(set<tuple<double, double>> points);
+    SpaceKB(set< tuple<double, double> > points);
     void print_points();
     void approaching_straight_line(double &approachoing_x, double &approaching_y);
-
 };
 
 
