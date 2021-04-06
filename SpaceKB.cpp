@@ -1,17 +1,18 @@
 #include "SpaceKB.h"
 #include <iostream>
 #include <tuple>
+#include <utility>
 
 // Constructor
-SpaceKB::SpaceKB(set< tuple<double, double> > points): points(points) {};
+SpaceKB::SpaceKB(set< tuple<double, double> > points): points(std::move(points)) {};
 
 void SpaceKB::print_points()
 {
     cout << "---------------------------------------" << endl;
 
-    for (auto i = points.begin(); i != points.end(); i++)
+    for (const auto & point : points)
     {
-        std::cout << get<0>(*i) << " ; " << get<1>(*i) << endl;
+        std::cout << get<0>(point) << " ; " << get<1>(point) << endl;
     }
 
     cout << "---------------------------------------" << endl;
@@ -28,12 +29,12 @@ void SpaceKB::approaching_straight_line(double &approaching_x, double &approachi
 
     if (n > 1)
     {
-        for (auto i = points.begin(); i != points.end(); i++)
+        for (const auto & point : points)
         {
-            Sx += get<0>(*i);
-            Sy += get<1>(*i);
-            Sxy += get<0>(*i) * get<1>(*i);
-            Sxx += get<0>(*i) * get<0>(*i);
+            Sx += get<0>(point);
+            Sy += get<1>(point);
+            Sxy += get<0>(point) * get<1>(point);
+            Sxx += get<0>(point) * get<0>(point);
         }
         Sx /= n;
         Sy /= n;
@@ -47,6 +48,7 @@ void SpaceKB::approaching_straight_line(double &approaching_x, double &approachi
         b = -b * a;
 
         // cout << "Приближающая прямая (n=" << n << "): x = " << a << " * y + " << b << "" << endl;
+
         approaching_x = b;
         approaching_y = -a;
     }
