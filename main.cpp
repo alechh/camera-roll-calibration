@@ -7,8 +7,12 @@
 #include <opencv2/videoio.hpp>
 #include <opencv2/imgproc/imgproc_c.h>
 #include <opencv2/opencv.hpp>
+#include <cmath>
 
 #include "SpaceKB.h"
+#include "IntervalsList.h"
+#include "Interval.h"
+#include "PointsList.h"
 
 using namespace cv;
 using namespace std;
@@ -135,7 +139,7 @@ void drawLines(Mat &src, vector <tuple<Point, Point>> lines)
  */
 vector<Vec2f> findLinesHough(Mat &src)
 {
-    Mat srcCopy;
+    Mat src_gray, src_canny;
     vector<Vec2f> lines;  // прямые, найденные на изображении
 
     // Media blur-----------------------
@@ -143,11 +147,11 @@ vector<Vec2f> findLinesHough(Mat &src)
     // medianBlur(src, srcBlurred, n);
     //----------------------------------
 
-    cvtColor(src, srcCopy, COLOR_BGR2GRAY);  // Подготовка изображения для метода Хафа поиска прямых
-    Canny(srcCopy, srcCopy, 50, 200, 3);  // Подготовка изображения для метода Хафа поиска прямых
+    //cvtColor(src, src_gray, COLOR_BGR2GRAY);  // Подготовка изображения для метода Хафа поиска прямых
+    Canny(src, src_canny, 50, 200, 3);  // Подготовка изображения для метода Хафа поиска прямых
 
-    // HoughLines(srcCopy, lines, 1, CV_PI/180, 150, 0, 0);
-    HoughLines(srcCopy, lines, 1, CV_PI / 180, 130, 0, 0);
+    //HoughLines(srcCopy, lines, 1, CV_PI/180, 150, 0, 0);
+    HoughLines(src_canny, lines, 1, CV_PI / 180, 110, 0, 0);
 
     return lines;
 }
@@ -167,6 +171,7 @@ void showVerticalLine(Mat &src, double x)
     pt2.y = src.rows;
 
     line(src, pt1, pt2, CV_RGB(80, 222, 24), 6, CV_AA);
+    imshow("src", src);
 }
 
 /**
@@ -218,6 +223,7 @@ double medianFilter(double *valuesForMedianFilter, const int NUMBER_OF_MEDIAN_VA
     bubbleSort(valuesForMedianFilter, NUMBER_OF_MEDIAN_VALUES);
     return valuesForMedianFilter[indexOfResult];
 }
+
 
 /**
  * Function of finding straight vertical lines
@@ -292,6 +298,203 @@ void simpleLineDetection(T path, double resize = 1)
     }
 }
 
+
+void vectorisation(Mat &src)
+{
+    IntervalsList prevIntervalsList;
+    int begin = 0;
+    int end = 0;
+    int cluster_num = 1;
+
+    // заполняем список интервалов для первой строки
+    for (int j = 1; j < src.cols; j++)
+    {
+        if (src.at<Vec3b>(0, j) != src.at<Vec3b>(0, j-1))
+        {
+            end = j-1;
+            prevIntervalsList.add_interval(begin, end, cluster_num, src.at<Vec3b>(0, j - 1));
+            begin = j;
+            cluster_num++;
+        }
+    }
+    cluster_num++;
+    prevIntervalsList.add_interval(begin, src.cols - 1, cluster_num, src.at<Vec3b>(0, src.cols - 1));
+
+    PointsList pointList;
+
+    for (int i = 1; i < src.rows; i++)
+    {
+        IntervalsList currIntervalList;
+        Interval *currPrevInterval = prevIntervalsList.head;
+        begin = 0;
+        end = 0;
+        cluster_num = 1;
+
+        for (int j = 1; j < src.cols; j++)
+        {
+            // сразу строим список интервалов на строке i
+            if (src.at<Vec3b>(i, j) != src.at<Vec3b>(i, j-1))
+            {
+                end = j-1;
+                Interval *currInterval = new Interval(begin, end, cluster_num, src.at<Vec3b>(i, j - 1));
+                currIntervalList.add_interval(currInterval);
+                begin = j;
+                cluster_num++;
+
+                // если мы попали сюда, значит мы нашли очередной интервал на строке i
+                // значит мы можем здесь сравнивать этот интервал с текущим интервалом из списка интервалов,
+                // который мы составили на предыдущей итерации
+                // 1) надо проверить, что они относятся к одному кластеру
+                // 2) надо проверить, что они пересекаются
+                if (currInterval->color == currPrevInterval->color)
+                {
+                    if (currInterval->begin > currPrevInterval->begin && currPrevInterval->end > currInterval->begin && currPrevInterval->end < currInterval->end)
+                    {
+                        // [     ]  -- currPrevInterval
+                        //   [     ] -- currInterval
+                        pointList.addNewPoint(Point(i - 1, currPrevInterval->begin));
+                        pointList.addNewPoint(Point(i, currInterval->begin));
+                        pointList.addNewPoint(Point(i - 1, currPrevInterval->end));
+                        pointList.addNewPoint(Point(i, currInterval->end));
+                    }
+                    else if (currInterval->begin < currPrevInterval->begin && currInterval->end < currPrevInterval->end && currPrevInterval->begin < currInterval->end)
+                    {
+                        //   [     ]  -- currPrevInterval
+                        // [     ] -- currInterval
+                        pointList.addNewPoint(Point(i, currInterval->begin));
+                        pointList.addNewPoint(Point(i - 1, currPrevInterval->begin));
+                        pointList.addNewPoint(Point(i, currInterval->end));
+                        pointList.addNewPoint(Point(i - 1, currPrevInterval->end));
+                    }
+                    else if (currInterval->begin > currPrevInterval->begin && currInterval->end < currPrevInterval->end && currInterval->end < currPrevInterval->end)
+                    {
+                        //   [     ]  -- currPrevInterval
+                        //     [ ] -- currInterval
+                        pointList.addNewPoint(Point(i - 1, currPrevInterval->begin));
+                        pointList.addNewPoint(Point(i, currInterval->begin));
+                        pointList.addNewPoint(Point(i, currInterval->end));
+                        pointList.addNewPoint(Point(i - 1, currPrevInterval->end));
+                    }
+                }
+            }
+
+        }
+        prevIntervalsList = currIntervalList;
+    }
+    cout << pointList.getLength() << endl;
+}
+
+
+void clustering(Mat& grad_x, Mat& grad_y, Mat& src)
+{
+    Mat angle(grad_x.rows,grad_x.cols, CV_64FC4);
+    phase(grad_x, grad_y, angle);  // вычисление углов градиента в каждой точке
+
+    //Mat result(src.rows,src.cols, src.type(), Scalar(0, 0, 0));
+    src = 0;
+
+    MatIterator_<Vec3b> it, end;
+    int i = 0;
+    int j = 0;
+
+    for (it = src.begin<Vec3b>(), end = src.end<Vec3b>(); it != end; ++it)
+    {
+        float s = angle.at<float>(i, j);
+
+        if (- CV_PI / 4 <= s && s <= CV_PI / 4)
+        {
+            // red
+            (*it)[0] = 0;
+            (*it)[1] = 0;
+            (*it)[2] = 255;
+        }
+        else if (CV_PI / 4 < s && s <= 3.0 * CV_PI / 4)
+        {
+            // blue
+            (*it)[0] = 255;
+            (*it)[1] = 0;
+            (*it)[2] = 0;
+        }
+        else if (3.0 * CV_PI / 4 < s && s <= 5.0 * CV_PI / 4)
+        {
+            // green
+            (*it)[0] = 0;
+            (*it)[1] = 255;
+            (*it)[2] = 0;
+        }
+        else if (5.0 * CV_PI / 3 < s && s <= 7.0 * CV_PI / 4)
+        {
+            // yellow
+            (*it)[0] = 0;
+            (*it)[1] = 255;
+            (*it)[2] = 255;
+        }
+        j++;
+        if (j == angle.cols)
+        {
+            i++;
+            j = 0;
+        }
+    }
+}
+
+
+template <class T>
+void simpleSobel(T path, double resize = 1)
+{
+    VideoCapture capture(path);
+    if (!capture.isOpened())
+    {
+        cerr<<"Error"<<endl;
+        return;
+    }
+
+    Mat src, src_gauss, src_gray, grad;
+
+    //VideoWriter outputVideo;
+    //Size S = Size((int) capture.get(CAP_PROP_FRAME_WIDTH), (int) capture.get(CAP_PROP_FRAME_HEIGHT));
+    //int ex = static_cast<int>(capture.get(CAP_PROP_FOURCC));
+    //outputVideo.open("../result.mp4", ex, capture.get(CAP_PROP_FPS), S, true);
+
+    while (true)
+    {
+        Mat grad_x, grad_y;
+        Mat abs_grad_x, abs_grad_y;
+
+        capture >> src;
+
+        GaussianBlur(src, src_gauss, Size(3, 3), 0, 0, BORDER_DEFAULT);
+        cvtColor(src_gauss, src_gray, COLOR_BGR2GRAY);
+
+        Sobel(src_gray, grad_x, CV_32F, 1, 0);
+        Sobel(src_gray, grad_y, CV_32F, 0, 1);
+
+        //convertScaleAbs(grad_x, abs_grad_x);
+        // convertScaleAbs(grad_y, abs_grad_y);
+        // addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad);  // объединение градиентов по x и по y
+
+        clustering(grad_x, grad_y, src);
+
+        //outputVideo << src;
+
+        // ------------------
+        //vector<Vec2f> lines = findLinesHough(abs_grad_x);  // нахождение прямых линий
+        //vector <tuple<Point, Point>> vertical_lines = selectionOfVerticalLines(lines);  // выбор только вертикальных линий
+        //drawLines(src, vertical_lines);  // отрисовка прямых линий
+        //-------------------
+
+        vectorisation(src);
+        imshow("result", src);
+
+        int k = waitKey(25);
+        if (k == 27)
+        {
+            break;
+        }
+    }
+}
+
+
 int main()
 {
     const string PATH_test = "../videos/test.AVI";
@@ -300,5 +503,6 @@ int main()
     const string PATH_road2 = "../videos/road2.mp4";
     const string PATH_road3 = "../videos/road3.mp4";
 
-    simpleLineDetection(PATH_road3, 0.6);
+    //simpleLineDetection(PATH_road3, 0.6);
+    simpleSobel(PATH_road3, 1);
 }
