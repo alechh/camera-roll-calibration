@@ -1,14 +1,5 @@
+#include <iostream>
 #include "PointsList.h"
-
-PointsList::PointsList()
-{
-    this->head = nullptr;
-}
-
-PointsList::PointsList(PointNode *pt)
-{
-    this->head = pt;
-}
 
 PointNode::PointNode(Point pt)
 {
@@ -17,19 +8,36 @@ PointNode::PointNode(Point pt)
 }
 
 
-void PointsList::addNewPoint(Point pt)
+//--------------------------------------------------------
+
+
+PointsList::PointsList()
+{
+    this->head = nullptr;
+    this->tail = nullptr;
+}
+
+
+PointsList::~PointsList()
+{
+    while (this->head)
+    {
+        PointNode* newHead = head->next;
+        delete this->head;
+        this->head = newHead;
+    }
+}
+
+void PointsList::addPoint(Point pt)
 {
     if (this->head == nullptr)
     {
         this->head = new PointNode(pt);
+        this->tail = head;
         return;
     }
-    PointNode *temp = head;
-    while(temp->next != nullptr)
-    {
-        temp = temp->next;
-    }
-    temp->next = new PointNode(pt);
+    this->tail->next = new PointNode(pt);
+    this->tail = tail->next;
 }
 
 

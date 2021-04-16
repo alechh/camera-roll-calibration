@@ -301,9 +301,9 @@ void simpleLineDetection(T path, double resize = 1)
 
 void vectorisation(Mat &src)
 {
-    IntervalsList prevIntervalsList;
+    IntervalsList *prevIntervalsList = new IntervalsList;
     int begin = 0;
-    int end = 0;
+    int end;
     int cluster_num = 1;
 
     // заполняем список интервалов для первой строки
@@ -312,76 +312,78 @@ void vectorisation(Mat &src)
         if (src.at<Vec3b>(0, j) != src.at<Vec3b>(0, j-1))
         {
             end = j-1;
-            prevIntervalsList.add_interval(begin, end, cluster_num, src.at<Vec3b>(0, j - 1));
+            prevIntervalsList->addInterval(begin, end, cluster_num, src.at<Vec3b>(0, j - 1));
             begin = j;
             cluster_num++;
         }
     }
     cluster_num++;
-    prevIntervalsList.add_interval(begin, src.cols - 1, cluster_num, src.at<Vec3b>(0, src.cols - 1));
+    prevIntervalsList->addInterval(begin, src.cols - 1, cluster_num, src.at<Vec3b>(0, src.cols - 1));
 
     PointsList pointList;
-
     for (int i = 1; i < src.rows; i++)
     {
-        IntervalsList currIntervalList;
-        Interval *currPrevInterval = prevIntervalsList.head;
+        IntervalsList *currIntervalList = new IntervalsList;
+        Interval *currPrevInterval = prevIntervalsList->head;
         begin = 0;
-        end = 0;
         cluster_num = 1;
 
         for (int j = 1; j < src.cols; j++)
         {
-            // сразу строим список интервалов на строке i
-            if (src.at<Vec3b>(i, j) != src.at<Vec3b>(i, j-1))
+            // заполним первый интервал мусорными значениями, чтобы он не был nullptr (не добавляем его в список)
+            Interval *currInterval = new Interval(0, 0, 0, src.at<Vec3b>(0, 0));
+
+            if (src.at<Vec3b>(i, j) != src.at<Vec3b>(i, j - 1))  // если нашли границу интервала
             {
-                end = j-1;
-                Interval *currInterval = new Interval(begin, end, cluster_num, src.at<Vec3b>(i, j - 1));
-                currIntervalList.add_interval(currInterval);
+                // сохраняем интервал в списке
+                end = j - 1;
+                currInterval = new Interval(begin, end, cluster_num, src.at<Vec3b>(i, j - 1));
+                currIntervalList->addInterval(currInterval);
                 begin = j;
                 cluster_num++;
 
-                // если мы попали сюда, значит мы нашли очередной интервал на строке i
-                // значит мы можем здесь сравнивать этот интервал с текущим интервалом из списка интервалов,
-                // который мы составили на предыдущей итерации
-                // 1) надо проверить, что они относятся к одному кластеру
-                // 2) надо проверить, что они пересекаются
-                if (currInterval->color == currPrevInterval->color)
+                // сравниваем найденный интервал с интервалом из списка интервалов предыдущей строки
+                // (они точно пересекаются, потому что мы параллельро двигаем указатель на интервал из предыдущей строки)
+                if (currInterval->color == currPrevInterval->color)  // если интервалы относятся к одному кластеру
                 {
-                    if (currInterval->begin > currPrevInterval->begin && currPrevInterval->end > currInterval->begin && currPrevInterval->end < currInterval->end)
-                    {
-                        // [     ]  -- currPrevInterval
-                        //   [     ] -- currInterval
-                        pointList.addNewPoint(Point(i - 1, currPrevInterval->begin));
-                        pointList.addNewPoint(Point(i, currInterval->begin));
-                        pointList.addNewPoint(Point(i - 1, currPrevInterval->end));
-                        pointList.addNewPoint(Point(i, currInterval->end));
-                    }
-                    else if (currInterval->begin < currPrevInterval->begin && currInterval->end < currPrevInterval->end && currPrevInterval->begin < currInterval->end)
-                    {
-                        //   [     ]  -- currPrevInterval
-                        // [     ] -- currInterval
-                        pointList.addNewPoint(Point(i, currInterval->begin));
-                        pointList.addNewPoint(Point(i - 1, currPrevInterval->begin));
-                        pointList.addNewPoint(Point(i, currInterval->end));
-                        pointList.addNewPoint(Point(i - 1, currPrevInterval->end));
-                    }
-                    else if (currInterval->begin > currPrevInterval->begin && currInterval->end < currPrevInterval->end && currInterval->end < currPrevInterval->end)
-                    {
-                        //   [     ]  -- currPrevInterval
-                        //     [ ] -- currInterval
-                        pointList.addNewPoint(Point(i - 1, currPrevInterval->begin));
-                        pointList.addNewPoint(Point(i, currInterval->begin));
-                        pointList.addNewPoint(Point(i, currInterval->end));
-                        pointList.addNewPoint(Point(i - 1, currPrevInterval->end));
-                    }
+                    // вроде они и так должны пересакаться, потому что мы "правильно" сдвигаем указатель на интервал из предыдущей строки
+                    pointList.addPoint(Point(currPrevInterval->begin, i - 1));
+                    pointList.addPoint(Point(currPrevInterval->end, i - 1));
+                    pointList.addPoint(Point(currInterval->begin, i));
+                    pointList.addPoint(Point(currInterval->end, i));
                 }
             }
 
+            // параллельно сдвигаем указатель на интервалы из предыдущей строки
+            while (currPrevInterval->end <= currInterval->end && currPrevInterval->next != nullptr)
+            {
+                currPrevInterval = currPrevInterval->next;
+            }
+
+            // добавление последнего интервала строки
+            cluster_num++;
+            prevIntervalsList->addInterval(begin, src.cols - 1, cluster_num, src.at<Vec3b>(i, src.cols - 1));
         }
-        prevIntervalsList = currIntervalList;
+
+        // пришлось написать условие, иначе вылетала ошибки из-за повторного вызова деструктора
+        if (i != src.rows - 1)
+        {
+            prevIntervalsList = currIntervalList;
+        }
     }
-    cout << pointList.getLength() << endl;
+
+    Mat result_of_vectorisation(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
+    PointNode *currentPoint = pointList.head;
+    if (currentPoint == nullptr)
+    {
+        return;
+    }
+    while (currentPoint->next != nullptr)
+    {
+        circle(result_of_vectorisation, currentPoint->pt, 1, Scalar(125, 125, 125), 1);
+        currentPoint = currentPoint->next;
+    }
+    src = result_of_vectorisation;
 }
 
 
@@ -451,10 +453,10 @@ void simpleSobel(T path, double resize = 1)
 
     Mat src, src_gauss, src_gray, grad;
 
-    //VideoWriter outputVideo;
-    //Size S = Size((int) capture.get(CAP_PROP_FRAME_WIDTH), (int) capture.get(CAP_PROP_FRAME_HEIGHT));
-    //int ex = static_cast<int>(capture.get(CAP_PROP_FOURCC));
-    //outputVideo.open("../result.mp4", ex, capture.get(CAP_PROP_FPS), S, true);
+//    VideoWriter outputVideo;
+//    Size S = Size((int) capture.get(CAP_PROP_FRAME_WIDTH), (int) capture.get(CAP_PROP_FRAME_HEIGHT));
+//    int ex = static_cast<int>(capture.get(CAP_PROP_FOURCC));
+//    outputVideo.open("../result.mp4", ex, capture.get(CAP_PROP_FPS), S, true);
 
     while (true)
     {
@@ -475,8 +477,6 @@ void simpleSobel(T path, double resize = 1)
 
         clustering(grad_x, grad_y, src);
 
-        //outputVideo << src;
-
         // ------------------
         //vector<Vec2f> lines = findLinesHough(abs_grad_x);  // нахождение прямых линий
         //vector <tuple<Point, Point>> vertical_lines = selectionOfVerticalLines(lines);  // выбор только вертикальных линий
@@ -484,6 +484,7 @@ void simpleSobel(T path, double resize = 1)
         //-------------------
 
         vectorisation(src);
+//        outputVideo << src;
         imshow("result", src);
 
         int k = waitKey(25);

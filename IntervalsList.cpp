@@ -4,60 +4,52 @@
 IntervalsList::IntervalsList()
 {
     this->head = nullptr;
+    this->tail = nullptr;
 }
 
-IntervalsList::IntervalsList(Interval *interval)
+
+IntervalsList::IntervalsList(const IntervalsList &copy):
+    head(copy.head),
+    tail(copy.tail)
 {
-    this->head = interval;
+    std::cout << "Copy" << std::endl;
+    //TODO Не вызывается конструктор копирования
 }
 
 
-//IntervalsList::~IntervalsList()
-//{
-//    if (this->head == nullptr)
-//    {
-//        return;
-//    }
-//    Interval *temp1, *temp2;
-//    temp1 = head;
-//    while (temp1->next != nullptr)
-//    {
-//        temp2 = temp1;
-//        temp1 = temp1->next;
-//        delete temp2;
-//    }
-//    delete temp1;
-//}
+IntervalsList::~IntervalsList()
+{
+    while (this->head)
+    {
+        Interval* newHead = head->next;
+        delete this->head;
+        this->head = newHead;
+    }
+}
 
 
-void IntervalsList::add_interval(int begin, int end, int cluster_num, cv::Vec3b color)
+void IntervalsList::addInterval(int begin, int end, int cluster_num, cv::Vec3b color)
 {
     if (this->head == nullptr)
     {
         this->head = new Interval(begin, end, cluster_num, color);
+        this->tail = head;
         return;
     }
-    Interval *temp = head;
-    while (temp->next != nullptr)
-    {
-        temp = temp->next;
-    }
-    temp->next = new Interval(begin, end, cluster_num, color);
+    this->tail->next = new Interval(begin, end, cluster_num, color);
+    this->tail = tail->next;
 }
 
-void IntervalsList::add_interval(Interval *newInterval)
+void IntervalsList::addInterval(Interval *newInterval)
 {
     if (this->head == nullptr)
     {
         this->head = newInterval;
+        this->tail = head;
         return;
     }
-    Interval *temp = head;
-    while (temp->next != nullptr)
-    {
-        temp = temp->next;
-    }
-    temp->next = newInterval;
+    this->tail->next = newInterval;
+    this->tail = tail->next;
 }
 
 

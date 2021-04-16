@@ -6,15 +6,14 @@
 
 struct IntervalsList
 {
-    Interval *head;
+    Interval *head, *tail;
 
     IntervalsList();
-    IntervalsList(Interval *interval);
-    //TODO написать нормальный деструктор
-//    ~IntervalsList();
+    ~IntervalsList();
+    IntervalsList (const IntervalsList &copy);  // конструктор копирования
 
-    void add_interval(int begin, int end, int cluster_num, cv::Vec3b color);
-    void add_interval(Interval *newInterval);
+    void addInterval(int begin, int end, int cluster_num, cv::Vec3b color);
+    void addInterval(Interval *newInterval);
     int getLength();
     void print();
 };

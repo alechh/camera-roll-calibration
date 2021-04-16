@@ -15,11 +15,12 @@ struct PointNode
 
 struct PointsList
 {
-    PointNode *head;
+    PointNode *head, *tail;
 
     PointsList();
-    PointsList(PointNode *pt);
-    void addNewPoint(Point pt);
+    ~PointsList();
+
+    void addPoint(Point pt);
     int getLength();
 };
 
