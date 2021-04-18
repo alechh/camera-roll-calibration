@@ -22,9 +22,9 @@ PointsList::~PointsList()
 {
     while (this->head)
     {
-        PointNode* newHead = head->next;
-        delete this->head;
-        this->head = newHead;
+        PointNode* oldHead = head;
+        head = head->next;
+        delete oldHead;
     }
 }
 

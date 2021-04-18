@@ -309,10 +309,10 @@ void vectorisation(Mat &src)
     // заполняем список интервалов для первой строки
     for (int j = 1; j < src.cols; j++)
     {
-        if (src.at<Vec3b>(0, j) != src.at<Vec3b>(0, j-1))
+        if (src.at<Vec3b>(j, 0) != src.at<Vec3b>(j - 1, 0))
         {
-            end = j-1;
-            prevIntervalsList->addInterval(begin, end, cluster_num, src.at<Vec3b>(0, j - 1));
+            end = j - 1;
+            prevIntervalsList->addInterval(begin, end, cluster_num, src.at<Vec3b>(j - 1, 0));
             begin = j;
             cluster_num++;
         }
@@ -321,23 +321,30 @@ void vectorisation(Mat &src)
     prevIntervalsList->addInterval(begin, src.cols - 1, cluster_num, src.at<Vec3b>(0, src.cols - 1));
 
     PointsList pointList;
+
+    // заполним первый интервал мусорными значениями, чтобы он не был nullptr (не добавляем его в список)
+    Interval *currInterval = new Interval(-1, -1, -1, src.at<Vec3b>(0, 0));
+    IntervalsList *currIntervalList = new IntervalsList;
     for (int i = 1; i < src.rows; i++)
     {
-        IntervalsList *currIntervalList = new IntervalsList;
         Interval *currPrevInterval = prevIntervalsList->head;
         begin = 0;
         cluster_num = 1;
 
         for (int j = 1; j < src.cols; j++)
         {
-            // заполним первый интервал мусорными значениями, чтобы он не был nullptr (не добавляем его в список)
-            Interval *currInterval = new Interval(0, 0, 0, src.at<Vec3b>(0, 0));
-
-            if (src.at<Vec3b>(i, j) != src.at<Vec3b>(i, j - 1))  // если нашли границу интервала
+            if (src.at<Vec3b>(j, i) != src.at<Vec3b>(j - 1, i))  // если нашли границу интервала
             {
                 // сохраняем интервал в списке
                 end = j - 1;
-                currInterval = new Interval(begin, end, cluster_num, src.at<Vec3b>(i, j - 1));
+
+                if (currInterval->cluster_num == -1)
+                {
+                    // удаляем интервал с мусорными значениями
+                    delete currInterval;
+                }
+
+                currInterval = new Interval(begin, end, cluster_num, src.at<Vec3b>(j - 1, i));
                 currIntervalList->addInterval(currInterval);
                 begin = j;
                 cluster_num++;
@@ -359,26 +366,24 @@ void vectorisation(Mat &src)
             {
                 currPrevInterval = currPrevInterval->next;
             }
-
-            // добавление последнего интервала строки
-            cluster_num++;
-            prevIntervalsList->addInterval(begin, src.cols - 1, cluster_num, src.at<Vec3b>(i, src.cols - 1));
         }
+        // добавление последнего интервала строки
+        cluster_num++;
+        currIntervalList->addInterval(begin, src.cols - 1, cluster_num, src.at<Vec3b>(src.cols - 1 , i));
 
-        // пришлось написать условие, иначе вылетала ошибки из-за повторного вызова деструктора
         if (i != src.rows - 1)
         {
+            prevIntervalsList->clearList();  // удаляем старый список
             prevIntervalsList = currIntervalList;
+            currIntervalList = new IntervalsList;  // заводим новый для следующей строки
         }
     }
+    delete prevIntervalsList;
+    delete currIntervalList;
 
     Mat result_of_vectorisation(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
     PointNode *currentPoint = pointList.head;
-    if (currentPoint == nullptr)
-    {
-        return;
-    }
-    while (currentPoint->next != nullptr)
+    while (currentPoint != nullptr)
     {
         circle(result_of_vectorisation, currentPoint->pt, 1, Scalar(125, 125, 125), 1);
         currentPoint = currentPoint->next;
@@ -392,7 +397,7 @@ void clustering(Mat& grad_x, Mat& grad_y, Mat& src)
     Mat angle(grad_x.rows,grad_x.cols, CV_64FC4);
     phase(grad_x, grad_y, angle);  // вычисление углов градиента в каждой точке
 
-    //Mat result(src.rows,src.cols, src.type(), Scalar(0, 0, 0));
+    // Mat result(src.rows,src.cols, src.type(), Scalar(0, 0, 0));
     src = 0;
 
     MatIterator_<Vec3b> it, end;
@@ -453,10 +458,10 @@ void simpleSobel(T path, double resize = 1)
 
     Mat src, src_gauss, src_gray, grad;
 
-//    VideoWriter outputVideo;
-//    Size S = Size((int) capture.get(CAP_PROP_FRAME_WIDTH), (int) capture.get(CAP_PROP_FRAME_HEIGHT));
-//    int ex = static_cast<int>(capture.get(CAP_PROP_FOURCC));
-//    outputVideo.open("../result.mp4", ex, capture.get(CAP_PROP_FPS), S, true);
+    // VideoWriter outputVideo;
+    // Size S = Size((int) capture.get(CAP_PROP_FRAME_WIDTH), (int) capture.get(CAP_PROP_FRAME_HEIGHT));
+    // int ex = static_cast<int>(capture.get(CAP_PROP_FOURCC));
+    // outputVideo.open("../result.mp4", ex, capture.get(CAP_PROP_FPS), S, true);
 
     while (true)
     {
@@ -471,25 +476,30 @@ void simpleSobel(T path, double resize = 1)
         Sobel(src_gray, grad_x, CV_32F, 1, 0);
         Sobel(src_gray, grad_y, CV_32F, 0, 1);
 
-        //convertScaleAbs(grad_x, abs_grad_x);
+        // convertScaleAbs(grad_x, abs_grad_x);
         // convertScaleAbs(grad_y, abs_grad_y);
         // addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad);  // объединение градиентов по x и по y
 
         clustering(grad_x, grad_y, src);
 
-        // ------------------
-        //vector<Vec2f> lines = findLinesHough(abs_grad_x);  // нахождение прямых линий
-        //vector <tuple<Point, Point>> vertical_lines = selectionOfVerticalLines(lines);  // выбор только вертикальных линий
-        //drawLines(src, vertical_lines);  // отрисовка прямых линий
-        //-------------------
+        // освобождаем память
+        src_gauss.release();
+        src_gray.release();
+        grad_x.release();
+        grad_y.release();
 
         vectorisation(src);
-//        outputVideo << src;
+        // outputVideo << src;
         imshow("result", src);
+
+        // освобождаем память
+        src.release();
 
         int k = waitKey(25);
         if (k == 27)
         {
+            // освобождаем память
+            capture.release();
             break;
         }
     }

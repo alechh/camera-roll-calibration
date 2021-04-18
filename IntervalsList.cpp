@@ -3,15 +3,31 @@
 
 IntervalsList::IntervalsList()
 {
-    this->head = nullptr;
-    this->tail = nullptr;
+    head = nullptr;
+    tail = nullptr;
 }
 
 
-IntervalsList::IntervalsList(const IntervalsList &copy):
-    head(copy.head),
-    tail(copy.tail)
+IntervalsList::IntervalsList(const IntervalsList *copy)
 {
+    if (copy->head == nullptr)
+    {
+        head = nullptr;
+        return;
+    }
+    head = new Interval(copy->head->begin, copy->head->end, copy->head->cluster_num, copy->head->color);
+    Interval* end = head;
+    Interval* cur = copy->head->next;
+
+    while (cur)
+    {
+        Interval* n = new Interval(cur->begin, cur->end, cur->cluster_num, cur->color);
+        end->next = n;
+        end = n;
+
+        cur = cur->next;
+    }
+    tail = end;
     std::cout << "Copy" << std::endl;
     //TODO Не вызывается конструктор копирования
 }
@@ -19,37 +35,37 @@ IntervalsList::IntervalsList(const IntervalsList &copy):
 
 IntervalsList::~IntervalsList()
 {
-    while (this->head)
+    while (head != nullptr)
     {
-        Interval* newHead = head->next;
-        delete this->head;
-        this->head = newHead;
+        Interval* oldHead = head;
+        head = head->next;
+        delete oldHead;
     }
 }
 
 
 void IntervalsList::addInterval(int begin, int end, int cluster_num, cv::Vec3b color)
 {
-    if (this->head == nullptr)
+    if (head == nullptr)
     {
-        this->head = new Interval(begin, end, cluster_num, color);
-        this->tail = head;
+        head = new Interval(begin, end, cluster_num, color);
+        tail = head;
         return;
     }
-    this->tail->next = new Interval(begin, end, cluster_num, color);
-    this->tail = tail->next;
+    tail->next = new Interval(begin, end, cluster_num, color);
+    tail = tail->next;
 }
 
 void IntervalsList::addInterval(Interval *newInterval)
 {
-    if (this->head == nullptr)
+    if (head == nullptr)
     {
-        this->head = newInterval;
-        this->tail = head;
+        head = newInterval;
+        tail = head;
         return;
     }
-    this->tail->next = newInterval;
-    this->tail = tail->next;
+    tail->next = newInterval;
+    tail = tail->next;
 }
 
 
@@ -86,4 +102,14 @@ void IntervalsList::print()
         temp = temp->next;
     }
     std::cout << std::endl;
+}
+
+void IntervalsList::clearList()
+{
+    while (head != nullptr)
+    {
+        Interval* oldHead = head;
+        head = head->next;
+        delete oldHead;
+    }
 }
