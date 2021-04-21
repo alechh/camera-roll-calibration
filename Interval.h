@@ -6,12 +6,13 @@
 struct Interval
 {
     int begin, end;
+    int y_coordinate;
     int cluster_num;
     cv::Vec3b color;
     Interval *next;
 
     Interval();
-    Interval(int begin, int end, int cluster_num, cv::Vec3b color);
+    Interval(int begin, int end, int y_coordinate, int cluster_num, cv::Vec3b color);
 };
 
 

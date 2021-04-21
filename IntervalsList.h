@@ -7,12 +7,12 @@
 struct IntervalsList
 {
     Interval *head, *tail;
+    IntervalsList *next;
 
     IntervalsList();
     ~IntervalsList();
-    IntervalsList (const IntervalsList *copy);  // конструктор копирования
 
-    void addInterval(int begin, int end, int cluster_num, cv::Vec3b color);
+    void addInterval(int begin, int end, int y_coordinate, int cluster_num, cv::Vec3b color);
     void addInterval(Interval *newInterval);
     int getLength();
     void print();

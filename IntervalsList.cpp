@@ -5,31 +5,7 @@ IntervalsList::IntervalsList()
 {
     head = nullptr;
     tail = nullptr;
-}
-
-
-IntervalsList::IntervalsList(const IntervalsList *copy)
-{
-    if (copy->head == nullptr)
-    {
-        head = nullptr;
-        return;
-    }
-    head = new Interval(copy->head->begin, copy->head->end, copy->head->cluster_num, copy->head->color);
-    Interval* end = head;
-    Interval* cur = copy->head->next;
-
-    while (cur)
-    {
-        Interval* n = new Interval(cur->begin, cur->end, cur->cluster_num, cur->color);
-        end->next = n;
-        end = n;
-
-        cur = cur->next;
-    }
-    tail = end;
-    std::cout << "Copy" << std::endl;
-    //TODO Не вызывается конструктор копирования
+    next = nullptr;
 }
 
 
@@ -44,15 +20,15 @@ IntervalsList::~IntervalsList()
 }
 
 
-void IntervalsList::addInterval(int begin, int end, int cluster_num, cv::Vec3b color)
+void IntervalsList::addInterval(int begin, int end, int y_coordinate, int cluster_num, cv::Vec3b color)
 {
     if (head == nullptr)
     {
-        head = new Interval(begin, end, cluster_num, color);
+        head = new Interval(begin, end, y_coordinate, cluster_num, color);
         tail = head;
         return;
     }
-    tail->next = new Interval(begin, end, cluster_num, color);
+    tail->next = new Interval(begin, end, y_coordinate, cluster_num, color);
     tail = tail->next;
 }
 

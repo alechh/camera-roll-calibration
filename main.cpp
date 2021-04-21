@@ -12,7 +12,7 @@
 #include "SpaceKB.h"
 #include "IntervalsList.h"
 #include "Interval.h"
-#include "PointsList.h"
+#include "ListOfIntervalsLists.h"
 
 using namespace cv;
 using namespace std;
@@ -301,92 +301,119 @@ void simpleLineDetection(T path, double resize = 1)
 
 void vectorisation(Mat &src)
 {
-    IntervalsList *prevIntervalsList = new IntervalsList;
+    auto *listOfIntervalsLists = new ListOfIntervalsLists;
     int begin = 0;
     int end;
     int cluster_num = 1;
 
-    // заполняем список интервалов для первой строки
+    // заполняем список списков интервалов для первой строки
     for (int j = 1; j < src.cols; j++)
     {
-        if (src.at<Vec3b>(j, 0) != src.at<Vec3b>(j - 1, 0))
+        if (src.at<Vec3b>(0, j) != src.at<Vec3b>(0, j - 1))
         {
             end = j - 1;
-            prevIntervalsList->addInterval(begin, end, cluster_num, src.at<Vec3b>(j - 1, 0));
+            auto *intervalList = new IntervalsList;
+            intervalList->addInterval(begin, end, 0, cluster_num, src.at<Vec3b>(0, j - 1));
             begin = j;
             cluster_num++;
+
+            listOfIntervalsLists->addIntervalList(intervalList);
         }
     }
+    // последний интервал в первой строке
+    auto *intervalList = new IntervalsList;
+    intervalList->addInterval(begin, src.cols - 1, 0, cluster_num, src.at<Vec3b>(0, src.cols - 1));
     cluster_num++;
-    prevIntervalsList->addInterval(begin, src.cols - 1, cluster_num, src.at<Vec3b>(0, src.cols - 1));
+    listOfIntervalsLists->addIntervalList(intervalList);
 
-    PointsList pointList;
-
-    // заполним первый интервал мусорными значениями, чтобы он не был nullptr (не добавляем его в список)
-    Interval *currInterval = new Interval(-1, -1, -1, src.at<Vec3b>(0, 0));
-    IntervalsList *currIntervalList = new IntervalsList;
     for (int i = 1; i < src.rows; i++)
     {
-        Interval *currPrevInterval = prevIntervalsList->head;
+        // заполним первый интервал мусорными значениями (не добавляем его в список)
+        auto *currInterval = new Interval(-1, -1, -1, -1, src.at<Vec3b>(0, 0));
+
+        IntervalsList *currIntervalList = listOfIntervalsLists->head;
+
+        int prevIntervalEnd = currIntervalList->tail->end;  // эта переменная нужна для своевременного сдвига текущего списка интервалов
+
         begin = 0;
         cluster_num = 1;
 
         for (int j = 1; j < src.cols; j++)
         {
-            if (src.at<Vec3b>(j, i) != src.at<Vec3b>(j - 1, i))  // если нашли границу интервала
+            if (src.at<Vec3b>(i, j) != src.at<Vec3b>(i, j - 1))  // если нашли границу интервала
             {
-                // сохраняем интервал в списке
-                end = j - 1;
+                cv::Vec3b color = src.at<Vec3b>(i, j - 1);  // цвет найденного интервала
 
                 if (currInterval->cluster_num == -1)
                 {
-                    // удаляем интервал с мусорными значениями
-                    delete currInterval;
+                    delete currInterval;  // удаляем интервал с мусорными значениями
                 }
 
-                currInterval = new Interval(begin, end, cluster_num, src.at<Vec3b>(j - 1, i));
-                currIntervalList->addInterval(currInterval);
+                end = j - 1;
+                currInterval = new Interval(begin, end, i, cluster_num, color);
                 begin = j;
                 cluster_num++;
 
                 // сравниваем найденный интервал с интервалом из списка интервалов предыдущей строки
-                // (они точно пересекаются, потому что мы параллельро двигаем указатель на интервал из предыдущей строки)
-                if (currInterval->color == currPrevInterval->color)  // если интервалы относятся к одному кластеру
+                // (они точно пересекаются, потому что мы параллельно двигаем указатель на список интервалов)
+                if (color == currIntervalList->tail->color)  // если интервалы относятся к одному кластеру (один цвет)
                 {
-                    // вроде они и так должны пересакаться, потому что мы "правильно" сдвигаем указатель на интервал из предыдущей строки
-                    pointList.addPoint(Point(currPrevInterval->begin, i - 1));
-                    pointList.addPoint(Point(currPrevInterval->end, i - 1));
-                    pointList.addPoint(Point(currInterval->begin, i));
-                    pointList.addPoint(Point(currInterval->end, i));
+                    currIntervalList->addInterval(currInterval);  // сохраняем интервал в списке
                 }
             }
 
-            // параллельно сдвигаем указатель на интервалы из предыдущей строки
-            while (currPrevInterval->end <= currInterval->end && currPrevInterval->next != nullptr)
+            // сдвигаем указатель на список интервалов
+            while (prevIntervalEnd <= currInterval->end && currIntervalList->next != nullptr)
             {
-                currPrevInterval = currPrevInterval->next;
+                currIntervalList = currIntervalList->next;
+                prevIntervalEnd = currIntervalList->tail->end;
             }
         }
+
         // добавление последнего интервала строки
         cluster_num++;
-        currIntervalList->addInterval(begin, src.cols - 1, cluster_num, src.at<Vec3b>(src.cols - 1 , i));
-
-        if (i != src.rows - 1)
+        currInterval = new Interval(begin, src.cols - 1, i, cluster_num, src.at<Vec3b>(i, src.cols - 1));
+        if (currInterval->color == currIntervalList->tail->color)
         {
-            prevIntervalsList->clearList();  // удаляем старый список
-            prevIntervalsList = currIntervalList;
-            currIntervalList = new IntervalsList;  // заводим новый для следующей строки
+            currIntervalList->addInterval(currInterval);
         }
+
+//        if (i != src.rows - 1)
+//        {
+//            prevIntervalsList->clearList();  // удаляем старый список
+//            prevIntervalsList = currIntervalList;
+//            currIntervalList = new IntervalsList;  // заводим новый для следующей строки
+//        }
     }
-    delete prevIntervalsList;
-    delete currIntervalList;
+//    delete prevIntervalsList;
+//    delete currIntervalList;
 
     Mat result_of_vectorisation(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
-    PointNode *currentPoint = pointList.head;
-    while (currentPoint != nullptr)
+    auto currIntervalList = listOfIntervalsLists->head;
+
+    while (currIntervalList != nullptr)
     {
-        circle(result_of_vectorisation, currentPoint->pt, 1, Scalar(125, 125, 125), 1);
-        currentPoint = currentPoint->next;
+        auto currInterval = currIntervalList->head;
+
+        while (currInterval != nullptr)
+        {
+            Point pt1, pt2;
+            pt1.x = currInterval->begin;
+            pt1.y = currInterval->y_coordinate;
+            pt2.x = currInterval->end;
+            pt2.y = currInterval->y_coordinate;
+
+//            pt1.x = currInterval->y_coordinate;
+//            pt1.y = currInterval->begin;
+//            pt2.x = currInterval->y_coordinate;
+//            pt2.y = currInterval->end;
+
+            circle(result_of_vectorisation, pt1, 1, Scalar(0, 0, 0), 1);
+            circle(result_of_vectorisation, pt2, 1, Scalar(0, 0, 0), 1);
+
+            currInterval = currInterval->next;
+        }
+        currIntervalList = currIntervalList->next;
     }
     src = result_of_vectorisation;
 }
@@ -456,12 +483,12 @@ void simpleSobel(T path, double resize = 1)
         return;
     }
 
-    Mat src, src_gauss, src_gray, grad;
+    Mat src, src_copy, src_gauss, src_gray, grad;
 
-    // VideoWriter outputVideo;
-    // Size S = Size((int) capture.get(CAP_PROP_FRAME_WIDTH), (int) capture.get(CAP_PROP_FRAME_HEIGHT));
-    // int ex = static_cast<int>(capture.get(CAP_PROP_FOURCC));
-    // outputVideo.open("../result.mp4", ex, capture.get(CAP_PROP_FPS), S, true);
+//     VideoWriter outputVideo;
+//     Size S = Size((int) capture.get(CAP_PROP_FRAME_WIDTH), (int) capture.get(CAP_PROP_FRAME_HEIGHT));
+//     int ex = static_cast<int>(capture.get(CAP_PROP_FOURCC));
+//     outputVideo.open("../result.mp4", ex, capture.get(CAP_PROP_FPS), S, true);
 
     while (true)
     {
@@ -482,17 +509,19 @@ void simpleSobel(T path, double resize = 1)
 
         clustering(grad_x, grad_y, src);
 
+        src_copy = src.clone();
+
+        vectorisation(src);
+//        outputVideo << src;
+        imshow("result", src);
+        //imshow("src_copy", src_copy);
+
         // освобождаем память
         src_gauss.release();
         src_gray.release();
         grad_x.release();
         grad_y.release();
-
-        vectorisation(src);
-        // outputVideo << src;
-        imshow("result", src);
-
-        // освобождаем память
+        src_copy.release();
         src.release();
 
         int k = waitKey(25);
