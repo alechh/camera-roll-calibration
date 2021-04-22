@@ -8,6 +8,7 @@ struct ListOfIntervalsLists
     IntervalsList *head, *tail;
 
     ListOfIntervalsLists();
+    ~ListOfIntervalsLists();
     void addIntervalList(IntervalsList *newIntervalList);
     int get_length();
 };

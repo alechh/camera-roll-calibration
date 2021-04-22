@@ -6,6 +6,16 @@ ListOfIntervalsLists::ListOfIntervalsLists()
     tail = head;
 }
 
+ListOfIntervalsLists::~ListOfIntervalsLists()
+{
+    while (head != nullptr)
+    {
+        IntervalsList* oldHead = head;
+        head = head->next;
+        delete oldHead;
+    }
+}
+
 void ListOfIntervalsLists::addIntervalList(IntervalsList *newIntervalList)
 {
     if (head == nullptr)

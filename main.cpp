@@ -13,6 +13,7 @@
 #include "IntervalsList.h"
 #include "Interval.h"
 #include "ListOfIntervalsLists.h"
+#include "ListOfPolylines.h"
 
 using namespace cv;
 using namespace std;
@@ -298,6 +299,61 @@ void simpleLineDetection(T path, double resize = 1)
     }
 }
 
+void makePolylines(Mat &src)
+{
+    auto listOfPolylines = new ListOfPolylines;
+    for (int i = 0; i < src.cols; i++)
+    {
+        int begin = 0;
+        int end = 0;
+
+        for (int j = 1; j < src.rows; j++)
+        {
+
+            cv::Vec3b lastColor = src.at<Vec3b>(j - 1, i);
+            cv::Vec3b newColor = src.at<Vec3b>(j, i);
+
+            if (newColor != lastColor)
+            {
+                if (newColor == Vec3b(0, 0, 0))
+                {
+                    // black
+                    begin = j;
+                }
+                else if (newColor == Vec3b(255, 255, 255))
+                {
+                    // white
+                    end = j;
+                    listOfPolylines->addPolyline(begin, end, i);
+                }
+            }
+        }
+    }
+
+    Mat result_of_polylines(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
+    Polyline *currPolyline = listOfPolylines->head;
+    while(currPolyline)
+    {
+        if (50 <= currPolyline->length() && currPolyline->length() <= 500)
+        {
+            Point pt1, pt2;
+
+            pt1.x = currPolyline->column;
+            pt1.y = currPolyline->begin;
+
+            pt2.x = currPolyline->column;
+            pt2.y = currPolyline->end;
+
+            line(result_of_polylines, pt1, pt2, (0,0,0), 1);
+        }
+
+        currPolyline = currPolyline->next;
+    }
+
+    imshow("src", src);
+    cv::resize(result_of_polylines, result_of_polylines, cv::Size(), 0.5, 0.5);
+    imshow("result_of_polylines", result_of_polylines);
+}
 
 void vectorisation(Mat &src)
 {
@@ -377,16 +433,7 @@ void vectorisation(Mat &src)
         {
             currIntervalList->addInterval(currInterval);
         }
-
-//        if (i != src.rows - 1)
-//        {
-//            prevIntervalsList->clearList();  // удаляем старый список
-//            prevIntervalsList = currIntervalList;
-//            currIntervalList = new IntervalsList;  // заводим новый для следующей строки
-//        }
     }
-//    delete prevIntervalsList;
-//    delete currIntervalList;
 
     Mat result_of_vectorisation(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
     auto currIntervalList = listOfIntervalsLists->head;
@@ -403,11 +450,6 @@ void vectorisation(Mat &src)
             pt2.x = currInterval->end;
             pt2.y = currInterval->y_coordinate;
 
-//            pt1.x = currInterval->y_coordinate;
-//            pt1.y = currInterval->begin;
-//            pt2.x = currInterval->y_coordinate;
-//            pt2.y = currInterval->end;
-
             circle(result_of_vectorisation, pt1, 1, Scalar(0, 0, 0), 1);
             circle(result_of_vectorisation, pt2, 1, Scalar(0, 0, 0), 1);
 
@@ -415,9 +457,14 @@ void vectorisation(Mat &src)
         }
         currIntervalList = currIntervalList->next;
     }
-    src = result_of_vectorisation;
-}
+    //src = result_of_vectorisation;
 
+    makePolylines(result_of_vectorisation);
+
+    // освобождаем память
+    result_of_vectorisation.release();
+    delete listOfIntervalsLists;
+}
 
 void clustering(Mat& grad_x, Mat& grad_y, Mat& src)
 {
@@ -483,7 +530,7 @@ void simpleSobel(T path, double resize = 1)
         return;
     }
 
-    Mat src, src_copy, src_gauss, src_gray, grad;
+    Mat src, src_gauss, src_gray, grad;
 
 //     VideoWriter outputVideo;
 //     Size S = Size((int) capture.get(CAP_PROP_FRAME_WIDTH), (int) capture.get(CAP_PROP_FRAME_HEIGHT));
@@ -509,19 +556,16 @@ void simpleSobel(T path, double resize = 1)
 
         clustering(grad_x, grad_y, src);
 
-        src_copy = src.clone();
-
         vectorisation(src);
+
 //        outputVideo << src;
-        imshow("result", src);
-        //imshow("src_copy", src_copy);
+        //imshow("result", src);
 
         // освобождаем память
         src_gauss.release();
         src_gray.release();
         grad_x.release();
         grad_y.release();
-        src_copy.release();
         src.release();
 
         int k = waitKey(25);
