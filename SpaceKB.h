@@ -11,7 +11,7 @@ class SpaceKB
 public:
     SpaceKB(set< tuple<double, double> > points);
     void print_points();
-    void approaching_straight_line(double &approachoing_x, double &approaching_y);
+    void approaching_straight_line(double &approaching_x, double &approaching_y);
 };
 
 

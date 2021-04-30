@@ -10,6 +10,7 @@ struct Interval
     int cluster_num;
     cv::Vec3b color;
     Interval *next;
+    bool added;
 
     Interval();
     Interval(int begin, int end, int y_coordinate, int cluster_num, cv::Vec3b color);

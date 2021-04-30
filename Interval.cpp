@@ -10,4 +10,5 @@ Interval::Interval(int begin, int end, int y_coordinate, int cluster_num, cv::Ve
     this->cluster_num = cluster_num;
     this->color = color;
     this->next = nullptr;
+    this->added = false;
 }

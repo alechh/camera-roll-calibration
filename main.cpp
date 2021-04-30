@@ -114,10 +114,9 @@ vector <tuple<Point, Point>> selectionOfVerticalLines(vector<Vec2f> lines, int d
 }
 
 /**
- * Draw vertical lines
+ * Draw lines
  * @param src -- Input image
- * @param lines -- vector of pairs of values rho and theta
- * @param delta -- coefficient by which it is determined whether a straight line is vertical
+ * @param lines -- vector of pairs of points of a straight line
  */
 void drawLines(Mat &src, vector <tuple<Point, Point>> lines)
 {
@@ -127,7 +126,7 @@ void drawLines(Mat &src, vector <tuple<Point, Point>> lines)
         pt1 = get<0>(line);
         pt2 = get<1>(line);
 
-        cv::line(src, pt1, pt2, CV_RGB(255,0,0), 2, CV_AA);  // отрисовка прямой
+        cv::line(src, pt1, pt2, CV_RGB(255,0,0), 1, CV_AA);  // отрисовка прямой
     }
 }
 
@@ -140,19 +139,23 @@ void drawLines(Mat &src, vector <tuple<Point, Point>> lines)
  */
 vector<Vec2f> findLinesHough(Mat &src)
 {
-    Mat src_gray, src_canny;
+    Mat src_gray, src_canny, src_8UC1;
     vector<Vec2f> lines;  // прямые, найденные на изображении
 
     // Media blur-----------------------
-    // int n = 3;
-    // medianBlur(src, srcBlurred, n);
+//    imshow("after_blurred", src);
+//     int n = 5;
+//     medianBlur(src, src, n);
+//    imshow("blurred", src);
     //----------------------------------
 
     //cvtColor(src, src_gray, COLOR_BGR2GRAY);  // Подготовка изображения для метода Хафа поиска прямых
     Canny(src, src_canny, 50, 200, 3);  // Подготовка изображения для метода Хафа поиска прямых
 
+    //imshow("canny", src_canny);
+
     //HoughLines(srcCopy, lines, 1, CV_PI/180, 150, 0, 0);
-    HoughLines(src_canny, lines, 1, CV_PI / 180, 110, 0, 0);
+    HoughLines(src_canny, lines, 1, CV_PI / 180, 50, 0, 0);
 
     return lines;
 }
@@ -162,7 +165,7 @@ vector<Vec2f> findLinesHough(Mat &src)
  * @param src -- Input image
  * @param x -- x coordinate of the line
  */
-void showVerticalLine(Mat &src, double x)
+void drawVerticalLine(Mat &src, double x)
 {
     Point pt1, pt2;
 
@@ -171,8 +174,11 @@ void showVerticalLine(Mat &src, double x)
     pt2.x = x;
     pt2.y = src.rows;
 
-    line(src, pt1, pt2, CV_RGB(80, 222, 24), 6, CV_AA);
-    imshow("src", src);
+    if (pt1.x != 0 && pt2.x != 0)
+    {
+        line(src, pt1, pt2, CV_RGB(80, 222, 24), 6, CV_AA);
+    }
+    //imshow("src", src);
 }
 
 /**
@@ -273,7 +279,7 @@ void simpleLineDetection(T path, double resize = 1)
             valuesForMedianFilter[n - 1] = result_x;
         }
 
-        showVerticalLine(src, prevResult_x);
+        drawVerticalLine(src, prevResult_x);
 
         if (resize != 1)
         {
@@ -299,9 +305,11 @@ void simpleLineDetection(T path, double resize = 1)
     }
 }
 
-void makePolylines(Mat &src)
+void makePolylines(Mat &src, Mat &dst, int delta = 10)
 {
     auto listOfPolylines = new ListOfPolylines;
+
+    // заполняем listOfPolylines вертикальными отрезками
     for (int i = 0; i < src.cols; i++)
     {
         int begin = 0;
@@ -317,24 +325,36 @@ void makePolylines(Mat &src)
             {
                 if (newColor == Vec3b(0, 0, 0))
                 {
-                    // black
-                    begin = j;
+                    // встретили черный цвет, значит это начало нового отрезка
+                    // Есть идея: склеивать близкие отрезки (по delta)
+                    if (abs(j - end) < delta)
+                    {
+                        // end -- конец предыдущего найденного отрезка
+                        // если есть 2 отрезка в одной колонке, которые очень близко, но разрвны с разрывом длиной delta
+                        // тогда мы их соединяем
+                        begin = end + 1;
+                    }
+                    else
+                    {
+                        begin = j;
+                    }
                 }
                 else if (newColor == Vec3b(255, 255, 255))
                 {
-                    // white
-                    end = j;
+                    // встретили белый цвет, значит это конец отрезка
+                    end = j - 1;
                     listOfPolylines->addPolyline(begin, end, i);
                 }
             }
         }
     }
 
-    Mat result_of_polylines(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
+    // выводим вериткальные отрезки на изображение
     Polyline *currPolyline = listOfPolylines->head;
     while(currPolyline)
     {
-        if (50 <= currPolyline->length() && currPolyline->length() <= 500)
+        // TODO надо подумать над длиной (дальние отрезки пока не выводятся, а хотелось бы)
+        if (30 <= currPolyline->length() && currPolyline->length() <= 500)
         {
             Point pt1, pt2;
 
@@ -344,18 +364,16 @@ void makePolylines(Mat &src)
             pt2.x = currPolyline->column;
             pt2.y = currPolyline->end;
 
-            line(result_of_polylines, pt1, pt2, (0,0,0), 1);
+            line(dst, pt1, pt2, Scalar(0, 0, 0), 1);
         }
-
         currPolyline = currPolyline->next;
     }
 
-    imshow("src", src);
-    cv::resize(result_of_polylines, result_of_polylines, cv::Size(), 0.5, 0.5);
-    imshow("result_of_polylines", result_of_polylines);
+    // освобождаем память
+    delete listOfPolylines;
 }
 
-void vectorisation(Mat &src)
+void vectorisation(Mat &src, Mat &dst)
 {
     auto *listOfIntervalsLists = new ListOfIntervalsLists;
     int begin = 0;
@@ -382,6 +400,7 @@ void vectorisation(Mat &src)
     cluster_num++;
     listOfIntervalsLists->addIntervalList(intervalList);
 
+    // заполняем списки интервалов для остальных строк
     for (int i = 1; i < src.rows; i++)
     {
         // заполним первый интервал мусорными значениями (не добавляем его в список)
@@ -400,9 +419,10 @@ void vectorisation(Mat &src)
             {
                 cv::Vec3b color = src.at<Vec3b>(i, j - 1);  // цвет найденного интервала
 
-                if (currInterval->cluster_num == -1)
+                // удаление интервалов, которые мы не добавили (чтобы память не утекала)
+                if (!currInterval->added)
                 {
-                    delete currInterval;  // удаляем интервал с мусорными значениями
+                    delete currInterval;
                 }
 
                 end = j - 1;
@@ -411,9 +431,10 @@ void vectorisation(Mat &src)
                 cluster_num++;
 
                 // сравниваем найденный интервал с интервалом из списка интервалов предыдущей строки
-                // (они точно пересекаются, потому что мы параллельно двигаем указатель на список интервалов)
+                // (они точно пересекаются, потому что мы вовремя двигаем указатель на список интервалов)
                 if (color == currIntervalList->tail->color)  // если интервалы относятся к одному кластеру (один цвет)
                 {
+                    currInterval->added = true;
                     currIntervalList->addInterval(currInterval);  // сохраняем интервал в списке
                 }
             }
@@ -426,6 +447,11 @@ void vectorisation(Mat &src)
             }
         }
 
+        if (!currInterval->added)
+        {
+            delete currInterval;
+        }
+
         // добавление последнего интервала строки
         cluster_num++;
         currInterval = new Interval(begin, src.cols - 1, i, cluster_num, src.at<Vec3b>(i, src.cols - 1));
@@ -433,8 +459,13 @@ void vectorisation(Mat &src)
         {
             currIntervalList->addInterval(currInterval);
         }
+        else
+        {
+            delete currInterval;
+        }
     }
 
+    // нарисуем границы кластеров
     Mat result_of_vectorisation(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
     auto currIntervalList = listOfIntervalsLists->head;
 
@@ -457,28 +488,24 @@ void vectorisation(Mat &src)
         }
         currIntervalList = currIntervalList->next;
     }
-    //src = result_of_vectorisation;
-
-    makePolylines(result_of_vectorisation);
+    dst = result_of_vectorisation;
 
     // освобождаем память
     result_of_vectorisation.release();
     delete listOfIntervalsLists;
 }
 
-void clustering(Mat& grad_x, Mat& grad_y, Mat& src)
+void clustering(Mat& grad_x, Mat& grad_y, Mat& dst)
 {
-    Mat angle(grad_x.rows,grad_x.cols, CV_64FC4);
+    Mat angle(grad_x.rows, grad_x.cols, CV_64FC4);
     phase(grad_x, grad_y, angle);  // вычисление углов градиента в каждой точке
 
-    // Mat result(src.rows,src.cols, src.type(), Scalar(0, 0, 0));
-    src = 0;
 
     MatIterator_<Vec3b> it, end;
     int i = 0;
     int j = 0;
 
-    for (it = src.begin<Vec3b>(), end = src.end<Vec3b>(); it != end; ++it)
+    for (it = dst.begin<Vec3b>(), end = dst.end<Vec3b>(); it != end; ++it)
     {
         float s = angle.at<float>(i, j);
 
@@ -517,11 +544,29 @@ void clustering(Mat& grad_x, Mat& grad_y, Mat& src)
             j = 0;
         }
     }
+
+    // освобождаем память
+    angle.release();
 }
 
 
+void simpleSobel(Mat &src, Mat &grad_x, Mat &grad_y)
+{
+    Mat src_gauss, src_gray;
+
+    GaussianBlur(src, src_gauss, Size(3, 3), 0, 0, BORDER_DEFAULT);
+    cvtColor(src_gauss, src_gray, COLOR_BGR2GRAY);
+
+    Sobel(src_gray, grad_x, CV_32F, 1, 0);
+    Sobel(src_gray, grad_y, CV_32F, 0, 1);
+
+    // освобождаем память
+    src_gauss.release();
+    src_gray.release();
+}
+
 template <class T>
-void simpleSobel(T path, double resize = 1)
+void selectingLinesUsingGradient(T path, double resize = 1)
 {
     VideoCapture capture(path);
     if (!capture.isOpened())
@@ -530,7 +575,8 @@ void simpleSobel(T path, double resize = 1)
         return;
     }
 
-    Mat src, src_gauss, src_gray, grad;
+    Mat src, src_vectorization;
+    Mat grad_x, grad_y;
 
 //     VideoWriter outputVideo;
 //     Size S = Size((int) capture.get(CAP_PROP_FRAME_WIDTH), (int) capture.get(CAP_PROP_FRAME_HEIGHT));
@@ -539,33 +585,66 @@ void simpleSobel(T path, double resize = 1)
 
     while (true)
     {
-        Mat grad_x, grad_y;
-        Mat abs_grad_x, abs_grad_y;
-
         capture >> src;
 
-        GaussianBlur(src, src_gauss, Size(3, 3), 0, 0, BORDER_DEFAULT);
-        cvtColor(src_gauss, src_gray, COLOR_BGR2GRAY);
+        // получение углов градиента
+        simpleSobel(src, grad_x, grad_y);
 
-        Sobel(src_gray, grad_x, CV_32F, 1, 0);
-        Sobel(src_gray, grad_y, CV_32F, 0, 1);
+        // кластеризация по углам градиента
+        Mat src_clustering(src.rows, src.cols, src.type());
+        clustering(grad_x, grad_y, src_clustering);
 
-        // convertScaleAbs(grad_x, abs_grad_x);
-        // convertScaleAbs(grad_y, abs_grad_y);
-        // addWeighted(abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad);  // объединение градиентов по x и по y
+        // векторизация границ кластеров
+        vectorisation(src_clustering, src_vectorization);
 
-        clustering(grad_x, grad_y, src);
+        // отбираем вертикальные отрезки
+        Mat src_polylines(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
+        makePolylines(src_vectorization, src_polylines, 0);
 
-        vectorisation(src);
+        // выделяем контуры
+        cvtColor( src_polylines, src_polylines, COLOR_BGR2GRAY );
+        Canny(src_polylines, src_polylines, 50, 200); // TODO подумать над коэффициентами
+        vector<vector<Point> > contours;
+        vector<Vec4i> hierarchy;
+        findContours( src_polylines, contours, hierarchy, RETR_TREE, CHAIN_APPROX_NONE );
 
-//        outputVideo << src;
-        //imshow("result", src);
+        // рисуем контуры
+        Mat src_contour(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
+        for (int i = 0; i < contours.size(); i++)
+        {
+            drawContours(src_contour,contours, i, Scalar(0, 0, 0), -1);
+        }
+
+        // выделяем прямые по контурам методов Хафа
+        vector<Vec2f> lines = findLinesHough(src_contour);  // нахождение прямых линий
+        vector < tuple<Point, Point> > vertical_lines = selectionOfVerticalLines(lines);  // выбор вертикальных прямых
+        drawLines(src, vertical_lines);  // отрисовка прямых
+
+        imshow("src", src);
+
+        // задаём ROI
+//        int x = src.cols / 3;
+//        int y = 0;
+//        int width = src.cols / 3;
+//        int height = src.rows;
+//        Mat dst_roi = dst(Rect(x, y, width, height));
+
+        // сдвиг координат из-за roi
+//        for (auto & line : vertical_lines)
+//        {
+//            get<0>(line).x += width;
+//            get<1>(line).x += width;
+//        }
+
+        //outputVideo << src;  // сохранение результата в файл
 
         // освобождаем память
-        src_gauss.release();
-        src_gray.release();
         grad_x.release();
         grad_y.release();
+        src_polylines.release();
+        src_vectorization.release();
+        src_clustering.release();
+        src_contour.release();
         src.release();
 
         int k = waitKey(25);
@@ -578,7 +657,6 @@ void simpleSobel(T path, double resize = 1)
     }
 }
 
-
 int main()
 {
     const string PATH_test = "../videos/test.AVI";
@@ -587,6 +665,6 @@ int main()
     const string PATH_road2 = "../videos/road2.mp4";
     const string PATH_road3 = "../videos/road3.mp4";
 
-    //simpleLineDetection(PATH_road3, 0.6);
-    simpleSobel(PATH_road3, 1);
+    //simpleLineDetection(PATH_road3);
+    selectingLinesUsingGradient(PATH_road3);
 }
