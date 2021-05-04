@@ -130,29 +130,23 @@ void drawLines(Mat &src, vector <tuple<Point, Point>> lines)
     }
 }
 
-/**
- * Search for vertical straight lines on video using the Hough method
- * @param src -- Input image.
- * @param resize -- image resizing factor.
- * @param delta -- Coefficient by which it is determined that the line is straight.
- *                 The larger it is, the more lines will be selected.
- */
+ /**
+  * Search for vertical straight lines on video using the Hough method
+  * @param src -- Input image
+  * @return vector of rho and theta pairs
+  */
 vector<Vec2f> findLinesHough(Mat &src)
 {
     Mat src_gray, src_canny, src_8UC1;
     vector<Vec2f> lines;  // прямые, найденные на изображении
 
-    // Media blur-----------------------
-//    imshow("after_blurred", src);
+    // Median blur-----------------------
 //     int n = 5;
 //     medianBlur(src, src, n);
-//    imshow("blurred", src);
     //----------------------------------
 
     //cvtColor(src, src_gray, COLOR_BGR2GRAY);  // Подготовка изображения для метода Хафа поиска прямых
     Canny(src, src_canny, 50, 200, 3);  // Подготовка изображения для метода Хафа поиска прямых
-
-    //imshow("canny", src_canny);
 
     //HoughLines(srcCopy, lines, 1, CV_PI/180, 150, 0, 0);
     HoughLines(src_canny, lines, 1, CV_PI / 180, 50, 0, 0);
@@ -178,26 +172,24 @@ void drawVerticalLine(Mat &src, double x)
     {
         line(src, pt1, pt2, CV_RGB(80, 222, 24), 6, CV_AA);
     }
-    //imshow("src", src);
 }
 
 /**
- * Put x coordinate of the point on the image
+ * Draw x coordinate of the point on the image
  * @param src -- Input image
  * @param x -- x coordinate
  */
-void showXOnImage(Mat &src, double x)
+void drawXOnImage(Mat &src, double x)
 {
     String text = to_string(x);
     int fontFace = FONT_HERSHEY_SCRIPT_SIMPLEX;
     double fontScale = 2;
     int thickness = 3;
     int baseline=0;
-    Size textSize = getTextSize(text, fontFace,
-                                fontScale, thickness, &baseline);
+    Size textSize = getTextSize(text, fontFace, fontScale, thickness, &baseline);
     baseline += thickness;
 
-    Point textOrg(15,50);
+    Point textOrg(15,50);  // Position of the text
 
     putText(src, text, textOrg, fontFace, fontScale,
             Scalar(0, 0, 0), thickness, 8);
@@ -227,19 +219,21 @@ void bubbleSort(T *values, int size)
 double medianFilter(double *valuesForMedianFilter, const int NUMBER_OF_MEDIAN_VALUES)
 {
     int indexOfResult = (NUMBER_OF_MEDIAN_VALUES - 1) / 2;
+
     bubbleSort(valuesForMedianFilter, NUMBER_OF_MEDIAN_VALUES);
+
     return valuesForMedianFilter[indexOfResult];
 }
 
 
 /**
- * Function of finding straight vertical lines
+ * Function of finding straight vertical lines using Hough method
  * @tparam T
  * @param path -- path to the video file. 0 means that the video will be read from the webcam.
  * @param resize -- image resizing factor.
  */
 template <class T>
-void simpleLineDetection(T path, double resize = 1)
+void selectingLinesUsingHoughMethod(T path, double resize = 1)
 {
     VideoCapture capture(path);
     if (!capture.isOpened())
@@ -305,6 +299,12 @@ void simpleLineDetection(T path, double resize = 1)
     }
 }
 
+/**
+ * Selection of vertical continuous segments, depending on their length, draw them in dst
+ * @param src -- Input image
+ * @param dst -- Output image
+ * @param delta -- The coefficient by which we glue close segments together
+ */
 void makePolylines(Mat &src, Mat &dst, int delta = 10)
 {
     auto listOfPolylines = new ListOfPolylines;
@@ -323,15 +323,13 @@ void makePolylines(Mat &src, Mat &dst, int delta = 10)
 
             if (newColor != lastColor)
             {
-                if (newColor == Vec3b(0, 0, 0))
+                if (newColor == Vec3b(0, 0, 0)) // встретили черный цвет, значит это начало нового отрезка
                 {
-                    // встретили черный цвет, значит это начало нового отрезка
-                    // Есть идея: склеивать близкие отрезки (по delta)
                     if (abs(j - end) < delta)
                     {
-                        // end -- конец предыдущего найденного отрезка
                         // если есть 2 отрезка в одной колонке, которые очень близко, но разрвны с разрывом длиной delta
                         // тогда мы их соединяем
+                        // end -- конец предыдущего найденного отрезка
                         begin = end + 1;
                     }
                     else
@@ -354,7 +352,7 @@ void makePolylines(Mat &src, Mat &dst, int delta = 10)
     while(currPolyline)
     {
         // TODO надо подумать над длиной (дальние отрезки пока не выводятся, а хотелось бы)
-        if (30 <= currPolyline->length() && currPolyline->length() <= 500)
+        if (25 <= currPolyline->length() && currPolyline->length() <= 500)
         {
             Point pt1, pt2;
 
@@ -373,6 +371,11 @@ void makePolylines(Mat &src, Mat &dst, int delta = 10)
     delete listOfPolylines;
 }
 
+/**
+ *  Gluing the borders of clusters that match the same color
+ * @param src -- Input image
+ * @param dst -- Output image
+ */
 void vectorisation(Mat &src, Mat &dst)
 {
     auto *listOfIntervalsLists = new ListOfIntervalsLists;
@@ -495,11 +498,16 @@ void vectorisation(Mat &src, Mat &dst)
     delete listOfIntervalsLists;
 }
 
+/**
+ * Paint each pixel in its own color depending on the angle of the gradient
+ * @param grad_x -- Array for x gradient
+ * @param grad_y -- Array for y gradient
+ * @param dst -- Output image
+ */
 void clustering(Mat& grad_x, Mat& grad_y, Mat& dst)
 {
     Mat angle(grad_x.rows, grad_x.cols, CV_64FC4);
     phase(grad_x, grad_y, angle);  // вычисление углов градиента в каждой точке
-
 
     MatIterator_<Vec3b> it, end;
     int i = 0;
@@ -537,6 +545,7 @@ void clustering(Mat& grad_x, Mat& grad_y, Mat& dst)
             (*it)[1] = 255;
             (*it)[2] = 255;
         }
+
         j++;
         if (j == angle.cols)
         {
@@ -549,7 +558,12 @@ void clustering(Mat& grad_x, Mat& grad_y, Mat& dst)
     angle.release();
 }
 
-
+/**
+ * Calculating the gradient angles
+ * @param src -- Input image
+ * @param grad_x -- Output for x gradient
+ * @param grad_y -- Output for y gradient
+ */
 void simpleSobel(Mat &src, Mat &grad_x, Mat &grad_y)
 {
     Mat src_gauss, src_gray;
@@ -563,6 +577,185 @@ void simpleSobel(Mat &src, Mat &grad_x, Mat &grad_y)
     // освобождаем память
     src_gauss.release();
     src_gray.release();
+}
+
+/**
+ * Discarding lines that are outside the Region Of Interest
+ * @param lines -- vector of pairs of points of vertical lines
+ * @param x_roi -- left border of the roi
+ * @param width_roi -- width of the roi
+ */
+void roiForVerticalLines(vector< tuple<Point, Point> > &lines, int x_roi, int width_roi)
+{
+    auto i = lines.begin();
+
+    while (i != lines.end())
+    {
+        if (get<0>(*i).x < x_roi || get<0>(*i).x > x_roi + width_roi)
+        {
+            i = lines.erase(i);
+        }
+        else
+        {
+            i++;
+        }
+    }
+}
+
+/**
+ * Selecting a horizon line using a gradient: select the longest horizontal segment in the middle part of the image
+ * and draw a straight line through it
+ * @param src -- Input image
+ */
+void findHorizonUsingGradient(Mat &src)
+{
+    int *arr = new int[src.rows / 3]; // массив для длин максимальных отрезков каждой линии серединной части изображения
+    for (int temp = 0; temp < src.rows / 3; temp++)
+    {
+        arr[temp] = 0;
+    }
+
+    // итерируемся по строкам серединной части изображения и в каждой находим самый длинный отрезок
+    for (int i = src.rows / 3; i < src.rows / 3 * 2; i++)
+    {
+        int *row_arr = new int[src.cols]; // массив для длин отрезков на линии
+        int curr_index = 0; // индекс для массива
+        for (int temp = 0; temp < src.cols; temp++)
+        {
+            row_arr[temp] = 0;
+        }
+
+        // итерируемся по строчке и считаем длины непрерывных кластеров
+        for (int j = 1; j < src.cols; j++)
+        {
+            if (src.at<Vec3b>(i, j) == src.at<Vec3b>(i, j - 1) && src.at<Vec3b>(i, j) != Vec3b(0, 0, 255))
+            {
+                // если идем по отрезку (не рассматриваем красные отрезки)
+                row_arr[curr_index]++;
+            }
+            else
+            {
+                // отрезок кончился
+                curr_index++;
+                row_arr[curr_index]++; // длина следующего отрезка пока = 1
+            }
+        }
+
+        // отыскиваем максимальную длину отрезка с текущей линии
+        int max = -1;
+        for (int temp = 0; temp < src.cols; temp++)
+        {
+            if (row_arr[temp] > max)
+            {
+                max = row_arr[temp];
+            }
+        }
+
+        arr[i - src.rows / 3] = max; // записываем в массив максимальных длин отрезков линий
+    }
+
+    // отыскиваем самый длинный отрезок из всех длинных отрезков
+    int max = -1;
+    int index_of_max = 0;
+    for (int i = 0; i < src.rows / 3; i++)
+    {
+        if (arr[i] > max)
+        {
+            index_of_max = i + src.rows / 3;
+            max = arr[i];
+        }
+    }
+
+    // рисуем прямую через самый длинный отрезок
+    line(src, Point(0, index_of_max), Point(src.cols - 1, index_of_max), Scalar(255, 255, 0), 2);
+}
+
+/**
+ * A filter that allows to determine whether the same number of straight lines were found
+ * to the left and right of the middle of the image
+ * @param vertical_lines -- vector of pairs of points of a straight line
+ * @param src_center -- x coordinate of the center of the image
+ * @param delta -- Acceptable value for the deviation of the number of left segments from the number of right segments
+ * @return
+ */
+bool quantitativeFilter(vector < tuple<Point, Point> > vertical_lines, int src_center, int delta = 10)
+{
+    int countLeft = 0;
+
+    // считаем количество прямых левее центра изображения
+    for (auto & line : vertical_lines)
+    {
+        Point pt1 = get<0>(line);
+        if (pt1.x <= src_center)
+        {
+            countLeft++;
+        }
+    }
+
+    // если слева и справа прямых почти поровну (количество отличается на delta)
+    if (abs(countLeft - (vertical_lines.size() - countLeft)) < delta)
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+/**
+ * Selection of continuous horizontal segments
+ * @param src -- Input image
+ * @param delta -- the minimum length of the segment that suits us
+ */
+void selectingHorizontalSegments(Mat &src, int delta = 30)
+{
+    auto intervalsList = new IntervalsList;
+
+    for (int i = 0; i < src.rows; i++)
+    {
+        int begin = 0;
+        int end = 0;
+        for (int j = 1; j < src.cols; j++)
+        {
+            if (src.at<Vec3b>(i, j) != src.at<Vec3b>(i, j - 1))
+            {
+                end = j - 1;
+                if (end - begin > delta)
+                {
+                    intervalsList->addInterval(begin, end, i, 0, src.at<Vec3b>(i, j - 1));
+                }
+                begin = j;
+            }
+        }
+
+        // добавление последнего отрезка строки
+        intervalsList->addInterval(begin, src.cols - 1, i, 0, src.at<Vec3b>(i, src.cols - 1));
+    }
+
+    // рисуем отрезки
+    Mat res(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
+    auto curr = intervalsList->head;
+    while (curr)
+    {
+        if (src.rows / 2 - 100 <= curr->y_coordinate && curr->y_coordinate <= src.rows / 2 + 100 && curr->color == Vec3b(0, 0, 0))
+        {
+            // если отрезки находятся в центральной части горизонтальной части изображения
+            // и их цвет черный
+
+            Point pt1, pt2;
+            pt1.x = curr->begin;
+            pt1.y = curr->y_coordinate;
+            pt2.x = curr->end;
+            pt2.y = curr->y_coordinate;
+
+            line(res, pt1, pt2, Scalar(0, 0, 0), 1);
+        }
+        curr = curr->next;
+    }
+
+    delete intervalsList;
+    imshow("horizontal", res);
 }
 
 template <class T>
@@ -583,6 +776,12 @@ void selectingLinesUsingGradient(T path, double resize = 1)
 //     int ex = static_cast<int>(capture.get(CAP_PROP_FOURCC));
 //     outputVideo.open("../result.mp4", ex, capture.get(CAP_PROP_FPS), S, true);
 
+    int n = 1;  // Счетчик для медианного фильтра
+    const int NUMBER_OF_MEDIAN_VALUES = 10;  // Раз во сколько кадров проводим медианный фильтр
+    double valuesForMedianFilter[NUMBER_OF_MEDIAN_VALUES - 1];  // Массив значений, который будет сортироваться для медианного фильтра
+    double prevResult_x = 0;  // Сохранение предыдущего значения, чтобы выводить на экран
+
+    double result_x = 0;  // будущая вычисленная координата x точки схода прямых
     while (true)
     {
         capture >> src;
@@ -591,8 +790,11 @@ void selectingLinesUsingGradient(T path, double resize = 1)
         simpleSobel(src, grad_x, grad_y);
 
         // кластеризация по углам градиента
-        Mat src_clustering(src.rows, src.cols, src.type());
+        Mat src_clustering(src.rows, src.cols, src.type(), Scalar(0, 0, 0));
         clustering(grad_x, grad_y, src_clustering);
+
+        //findHorizonUsingGradient(src_clustering); // TODO попробовать выделить линию горизонта через градиент
+        //selectingHorizontalSegments(src_clustering);
 
         // векторизация границ кластеров
         vectorisation(src_clustering, src_vectorization);
@@ -604,7 +806,7 @@ void selectingLinesUsingGradient(T path, double resize = 1)
         // выделяем контуры
         cvtColor( src_polylines, src_polylines, COLOR_BGR2GRAY );
         Canny(src_polylines, src_polylines, 50, 200); // TODO подумать над коэффициентами
-        vector<vector<Point> > contours;
+        vector< vector<Point> > contours;
         vector<Vec4i> hierarchy;
         findContours( src_polylines, contours, hierarchy, RETR_TREE, CHAIN_APPROX_NONE );
 
@@ -618,25 +820,42 @@ void selectingLinesUsingGradient(T path, double resize = 1)
         // выделяем прямые по контурам методов Хафа
         vector<Vec2f> lines = findLinesHough(src_contour);  // нахождение прямых линий
         vector < tuple<Point, Point> > vertical_lines = selectionOfVerticalLines(lines);  // выбор вертикальных прямых
+
+        roiForVerticalLines(vertical_lines, src.cols / 4, src.cols / 2);
+
         drawLines(src, vertical_lines);  // отрисовка прямых
+        makeSpaceKB(result_x, vertical_lines);  // построение пространства Kb, чтобы найти приближающую прямую через
+
+//        // проверяем, что нашлось примерно поровну прямых слева и справа
+//        if (quantitativeFilter(vertical_lines, src.cols / 2, 100))
+//        {
+//            makeSpaceKB(result_x, vertical_lines);  // построение пространства Kb, чтобы найти приближающую прямую через
+//            // линейную регрессию. Далее обратным отображением находим точку схода прямых
+//        }
+
+        if (n % NUMBER_OF_MEDIAN_VALUES == 0)  // Если нужно провести медианный фильтр
+        {
+            prevResult_x = medianFilter(valuesForMedianFilter, NUMBER_OF_MEDIAN_VALUES);
+        }
+        else
+        {
+            valuesForMedianFilter[n - 1] = result_x;
+        }
+
+        drawVerticalLine(src, prevResult_x);
 
         imshow("src", src);
 
-        // задаём ROI
-//        int x = src.cols / 3;
-//        int y = 0;
-//        int width = src.cols / 3;
-//        int height = src.rows;
-//        Mat dst_roi = dst(Rect(x, y, width, height));
+        if (n % NUMBER_OF_MEDIAN_VALUES == 0)
+        {
+            n = 1;
+        }
+        else
+        {
+            n++;
+        }
 
-        // сдвиг координат из-за roi
-//        for (auto & line : vertical_lines)
-//        {
-//            get<0>(line).x += width;
-//            get<1>(line).x += width;
-//        }
-
-        //outputVideo << src;  // сохранение результата в файл
+//        outputVideo << src;  // сохранение результата в файл
 
         // освобождаем память
         grad_x.release();
@@ -665,6 +884,6 @@ int main()
     const string PATH_road2 = "../videos/road2.mp4";
     const string PATH_road3 = "../videos/road3.mp4";
 
-    //simpleLineDetection(PATH_road3);
+    //selectingLinesUsingHoughMethod(PATH_road3);
     selectingLinesUsingGradient(PATH_road3);
 }
