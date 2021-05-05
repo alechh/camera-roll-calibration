@@ -137,20 +137,22 @@ void drawLines(Mat &src, vector <tuple<Point, Point>> lines)
   */
 vector<Vec2f> findLinesHough(Mat &src)
 {
-    Mat src_gray, src_canny, src_8UC1;
+    Mat src_gray, src_canny;
     vector<Vec2f> lines;  // прямые, найденные на изображении
 
     // Median blur-----------------------
-//     int n = 5;
-//     medianBlur(src, src, n);
+    // int n = 5;
+    // medianBlur(src, src, n);
     //----------------------------------
 
     //cvtColor(src, src_gray, COLOR_BGR2GRAY);  // Подготовка изображения для метода Хафа поиска прямых
-    Canny(src, src_canny, 50, 200, 3);  // Подготовка изображения для метода Хафа поиска прямых
+    Canny(src, src_canny, 50, 200);  // Подготовка изображения для метода Хафа поиска прямых
 
     //HoughLines(srcCopy, lines, 1, CV_PI/180, 150, 0, 0);
-    HoughLines(src_canny, lines, 1, CV_PI / 180, 50, 0, 0);
+    HoughLines(src_canny, lines, 1, CV_PI / 180, 80, 0, 0);
 
+    src_gray.release();
+    src_canny.release();
     return lines;
 }
 
@@ -305,7 +307,7 @@ void selectingLinesUsingHoughMethod(T path, double resize = 1)
  * @param dst -- Output image
  * @param delta -- The coefficient by which we glue close segments together
  */
-void makePolylines(Mat &src, Mat &dst, int delta = 10)
+void makePolylines(Mat &src, Mat &dst, int delta = 100)
 {
     auto listOfPolylines = new ListOfPolylines;
 
@@ -352,7 +354,7 @@ void makePolylines(Mat &src, Mat &dst, int delta = 10)
     while(currPolyline)
     {
         // TODO надо подумать над длиной (дальние отрезки пока не выводятся, а хотелось бы)
-        if (25 <= currPolyline->length() && currPolyline->length() <= 500)
+        if (20 <= currPolyline->length() && currPolyline->length() <= 500)
         {
             Point pt1, pt2;
 
@@ -366,6 +368,7 @@ void makePolylines(Mat &src, Mat &dst, int delta = 10)
         }
         currPolyline = currPolyline->next;
     }
+    //imshow("dst", dst);
 
     // освобождаем память
     delete listOfPolylines;
@@ -678,7 +681,7 @@ void findHorizonUsingGradient(Mat &src)
  * @param delta -- Acceptable value for the deviation of the number of left segments from the number of right segments
  * @return
  */
-bool quantitativeFilter(vector < tuple<Point, Point> > vertical_lines, int src_center, int delta = 10)
+bool quantitativeFilter(vector < tuple<Point, Point> > vertical_lines, int src_center, double delta = 2)
 {
     int countLeft = 0;
 
@@ -692,8 +695,13 @@ bool quantitativeFilter(vector < tuple<Point, Point> > vertical_lines, int src_c
         }
     }
 
+    if (countLeft == 0 || vertical_lines.size() - countLeft == 0)
+    {
+        return false;
+    }
+
     // если слева и справа прямых почти поровну (количество отличается на delta)
-    if (abs(countLeft - (vertical_lines.size() - countLeft)) < delta)
+    if (countLeft / (vertical_lines.size() - countLeft) < delta)
     {
         return true;
     }
@@ -771,10 +779,10 @@ void selectingLinesUsingGradient(T path, double resize = 1)
     Mat src, src_vectorization;
     Mat grad_x, grad_y;
 
-//     VideoWriter outputVideo;
-//     Size S = Size((int) capture.get(CAP_PROP_FRAME_WIDTH), (int) capture.get(CAP_PROP_FRAME_HEIGHT));
-//     int ex = static_cast<int>(capture.get(CAP_PROP_FOURCC));
-//     outputVideo.open("../result.mp4", ex, capture.get(CAP_PROP_FPS), S, true);
+     VideoWriter outputVideo;
+     Size S = Size((int) capture.get(CAP_PROP_FRAME_WIDTH), (int) capture.get(CAP_PROP_FRAME_HEIGHT));
+     int ex = static_cast<int>(capture.get(CAP_PROP_FOURCC));
+     outputVideo.open("../result.mp4", ex, capture.get(CAP_PROP_FPS), S, true);
 
     int n = 1;  // Счетчик для медианного фильтра
     const int NUMBER_OF_MEDIAN_VALUES = 10;  // Раз во сколько кадров проводим медианный фильтр
@@ -804,11 +812,11 @@ void selectingLinesUsingGradient(T path, double resize = 1)
         makePolylines(src_vectorization, src_polylines, 0);
 
         // выделяем контуры
-        cvtColor( src_polylines, src_polylines, COLOR_BGR2GRAY );
-        Canny(src_polylines, src_polylines, 50, 200); // TODO подумать над коэффициентами
+        cvtColor(src_polylines, src_polylines, COLOR_BGR2GRAY);
+        Canny(src_polylines, src_polylines, 30, 200); // TODO подумать над коэффициентами
         vector< vector<Point> > contours;
         vector<Vec4i> hierarchy;
-        findContours( src_polylines, contours, hierarchy, RETR_TREE, CHAIN_APPROX_NONE );
+        findContours(src_polylines, contours, hierarchy, RETR_TREE, CHAIN_APPROX_NONE);
 
         // рисуем контуры
         Mat src_contour(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
@@ -821,17 +829,21 @@ void selectingLinesUsingGradient(T path, double resize = 1)
         vector<Vec2f> lines = findLinesHough(src_contour);  // нахождение прямых линий
         vector < tuple<Point, Point> > vertical_lines = selectionOfVerticalLines(lines);  // выбор вертикальных прямых
 
-        roiForVerticalLines(vertical_lines, src.cols / 4, src.cols / 2);
+        // оставляем прямые, которые вписываются с центральную часть ширины width_roi, которая начинается с x_roi
+        int x_roi = src.cols / 4;
+        int width_roi = src.cols / 2;
+        roiForVerticalLines(vertical_lines, x_roi, width_roi);
 
         drawLines(src, vertical_lines);  // отрисовка прямых
-        makeSpaceKB(result_x, vertical_lines);  // построение пространства Kb, чтобы найти приближающую прямую через
+        //makeSpaceKB(result_x, vertical_lines); // построение пространства Kb, чтобы найти приближающую прямую через
+                                                             // линейную регрессию. Далее обратным отображением находим точку схода прямых
 
-//        // проверяем, что нашлось примерно поровну прямых слева и справа
-//        if (quantitativeFilter(vertical_lines, src.cols / 2, 100))
-//        {
-//            makeSpaceKB(result_x, vertical_lines);  // построение пространства Kb, чтобы найти приближающую прямую через
-//            // линейную регрессию. Далее обратным отображением находим точку схода прямых
-//        }
+        // проверяем, что нашлось примерно поровну прямых слева и справа
+        if (quantitativeFilter(vertical_lines, src.cols / 2, 1.5))
+        {
+            makeSpaceKB(result_x, vertical_lines);  // построение пространства Kb, чтобы найти приближающую прямую через
+            // линейную регрессию. Далее обратным отображением находим точку схода прямых
+        }
 
         if (n % NUMBER_OF_MEDIAN_VALUES == 0)  // Если нужно провести медианный фильтр
         {
@@ -855,7 +867,7 @@ void selectingLinesUsingGradient(T path, double resize = 1)
             n++;
         }
 
-//        outputVideo << src;  // сохранение результата в файл
+        outputVideo << src;  // сохранение результата в файл
 
         // освобождаем память
         grad_x.release();
