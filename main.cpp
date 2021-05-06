@@ -141,15 +141,13 @@ vector<Vec2f> findLinesHough(Mat &src)
     vector<Vec2f> lines;  // прямые, найденные на изображении
 
     // Median blur-----------------------
-    // int n = 5;
-    // medianBlur(src, src, n);
-    //----------------------------------
+//     int n = 3;
+//     medianBlur(src, src, n);
 
     //cvtColor(src, src_gray, COLOR_BGR2GRAY);  // Подготовка изображения для метода Хафа поиска прямых
     Canny(src, src_canny, 50, 200);  // Подготовка изображения для метода Хафа поиска прямых
 
-    //HoughLines(srcCopy, lines, 1, CV_PI/180, 150, 0, 0);
-    HoughLines(src_canny, lines, 1, CV_PI / 180, 80, 0, 0);
+    HoughLines(src_canny, lines, 1, CV_PI / 180, 50);
 
     src_gray.release();
     src_canny.release();
@@ -307,7 +305,7 @@ void selectingLinesUsingHoughMethod(T path, double resize = 1)
  * @param dst -- Output image
  * @param delta -- The coefficient by which we glue close segments together
  */
-void makePolylines(Mat &src, Mat &dst, int delta = 100)
+void makePolylines(Mat &src, Mat &dst, int delta = 10, int x_roi = 0, int width_roi = 0)
 {
     auto listOfPolylines = new ListOfPolylines;
 
@@ -327,12 +325,29 @@ void makePolylines(Mat &src, Mat &dst, int delta = 100)
             {
                 if (newColor == Vec3b(0, 0, 0)) // встретили черный цвет, значит это начало нового отрезка
                 {
-                    if (abs(j - end) < delta)
+                    if (j - end < delta)
                     {
                         // если есть 2 отрезка в одной колонке, которые очень близко, но разрвны с разрывом длиной delta
                         // тогда мы их соединяем
                         // end -- конец предыдущего найденного отрезка
-                        begin = end + 1;
+
+                        // также добавим фильтр roi (будем склеивать только центральные отрезки)
+                        if (width_roi != 0)
+                        {
+                            if (x_roi <= i && i <= x_roi + width_roi)
+                            {
+                                begin = end + 1;
+                            }
+                            else
+                            {
+                                begin = j;
+                            }
+                        }
+                        else
+                        {
+                            begin = end + 1;
+                        }
+
                     }
                     else
                     {
@@ -351,10 +366,9 @@ void makePolylines(Mat &src, Mat &dst, int delta = 100)
 
     // выводим вериткальные отрезки на изображение
     Polyline *currPolyline = listOfPolylines->head;
-    while(currPolyline)
+    while (currPolyline)
     {
-        // TODO надо подумать над длиной (дальние отрезки пока не выводятся, а хотелось бы)
-        if (20 <= currPolyline->length() && currPolyline->length() <= 500)
+        if (50 <= currPolyline->length() && currPolyline->length() <= src.rows)
         {
             Point pt1, pt2;
 
@@ -368,7 +382,6 @@ void makePolylines(Mat &src, Mat &dst, int delta = 100)
         }
         currPolyline = currPolyline->next;
     }
-    //imshow("dst", dst);
 
     // освобождаем память
     delete listOfPolylines;
@@ -779,10 +792,10 @@ void selectingLinesUsingGradient(T path, double resize = 1)
     Mat src, src_vectorization;
     Mat grad_x, grad_y;
 
-     VideoWriter outputVideo;
-     Size S = Size((int) capture.get(CAP_PROP_FRAME_WIDTH), (int) capture.get(CAP_PROP_FRAME_HEIGHT));
-     int ex = static_cast<int>(capture.get(CAP_PROP_FOURCC));
-     outputVideo.open("../result.mp4", ex, capture.get(CAP_PROP_FPS), S, true);
+//     VideoWriter outputVideo;
+//     Size S = Size((int) capture.get(CAP_PROP_FRAME_WIDTH), (int) capture.get(CAP_PROP_FRAME_HEIGHT));
+//     int ex = static_cast<int>(capture.get(CAP_PROP_FOURCC));
+//     outputVideo.open("../result.mp4", ex, capture.get(CAP_PROP_FPS), S, true);
 
     int n = 1;  // Счетчик для медианного фильтра
     const int NUMBER_OF_MEDIAN_VALUES = 10;  // Раз во сколько кадров проводим медианный фильтр
@@ -794,6 +807,9 @@ void selectingLinesUsingGradient(T path, double resize = 1)
     {
         capture >> src;
 
+        int x_roi = src.cols / 4;
+        int width_roi = src.cols / 2;
+
         // получение углов градиента
         simpleSobel(src, grad_x, grad_y);
 
@@ -801,7 +817,7 @@ void selectingLinesUsingGradient(T path, double resize = 1)
         Mat src_clustering(src.rows, src.cols, src.type(), Scalar(0, 0, 0));
         clustering(grad_x, grad_y, src_clustering);
 
-        //findHorizonUsingGradient(src_clustering); // TODO попробовать выделить линию горизонта через градиент
+        //findHorizonUsingGradient(src_clustering);
         //selectingHorizontalSegments(src_clustering);
 
         // векторизация границ кластеров
@@ -809,29 +825,28 @@ void selectingLinesUsingGradient(T path, double resize = 1)
 
         // отбираем вертикальные отрезки
         Mat src_polylines(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
-        makePolylines(src_vectorization, src_polylines, 0);
+        makePolylines(src_vectorization, src_polylines, 15, x_roi, width_roi);
 
         // выделяем контуры
-        cvtColor(src_polylines, src_polylines, COLOR_BGR2GRAY);
-        Canny(src_polylines, src_polylines, 30, 200); // TODO подумать над коэффициентами
-        vector< vector<Point> > contours;
-        vector<Vec4i> hierarchy;
-        findContours(src_polylines, contours, hierarchy, RETR_TREE, CHAIN_APPROX_NONE);
-
-        // рисуем контуры
-        Mat src_contour(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
-        for (int i = 0; i < contours.size(); i++)
-        {
-            drawContours(src_contour,contours, i, Scalar(0, 0, 0), -1);
-        }
+//        Mat src_canny;
+//        cvtColor(src_polylines, src_canny, COLOR_BGR2GRAY);
+//        Canny(src_canny, src_canny, 30, 200);
+//        vector< vector<Point> > contours;
+//        vector<Vec4i> hierarchy;
+//        findContours(src_canny, contours, hierarchy, RETR_TREE, CHAIN_APPROX_NONE);
+//
+//        // рисуем контуры
+//        Mat src_contour(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
+//        for (int i = 0; i < contours.size(); i++)
+//        {
+//            drawContours(src_contour,contours, i, Scalar(0, 0, 0), -1);
+//        }
 
         // выделяем прямые по контурам методов Хафа
-        vector<Vec2f> lines = findLinesHough(src_contour);  // нахождение прямых линий
+        vector<Vec2f> lines = findLinesHough(src_polylines);  // нахождение прямых линий
         vector < tuple<Point, Point> > vertical_lines = selectionOfVerticalLines(lines);  // выбор вертикальных прямых
 
         // оставляем прямые, которые вписываются с центральную часть ширины width_roi, которая начинается с x_roi
-        int x_roi = src.cols / 4;
-        int width_roi = src.cols / 2;
         roiForVerticalLines(vertical_lines, x_roi, width_roi);
 
         drawLines(src, vertical_lines);  // отрисовка прямых
@@ -867,7 +882,7 @@ void selectingLinesUsingGradient(T path, double resize = 1)
             n++;
         }
 
-        outputVideo << src;  // сохранение результата в файл
+//        outputVideo << src;  // сохранение результата в файл
 
         // освобождаем память
         grad_x.release();
@@ -875,7 +890,7 @@ void selectingLinesUsingGradient(T path, double resize = 1)
         src_polylines.release();
         src_vectorization.release();
         src_clustering.release();
-        src_contour.release();
+        //src_contour.release();
         src.release();
 
         int k = waitKey(25);
@@ -883,6 +898,152 @@ void selectingLinesUsingGradient(T path, double resize = 1)
         {
             // освобождаем память
             capture.release();
+            break;
+        }
+    }
+}
+
+void findHorizon(const string PATH)
+{
+    VideoCapture capture(PATH);
+    Mat src, src_canny;
+
+    while (true)
+    {
+        capture >> src;
+        Mat result(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
+
+        Mat src_hsv = Mat(src.cols, src.rows, 8, 3);
+        vector<Mat> splitedHsv = vector<Mat>();
+        cvtColor(src, src_hsv, CV_RGB2HSV);
+        split(src_hsv, splitedHsv);
+
+        int sensivity = 120;
+
+        int H_WHITE_MIN = 0;
+        int S_WHITE_MIN = 0;
+        int V_WHITE_MIN = 255 - sensivity;
+
+        int H_WHITE_MAX = 255;
+        int S_WHITE_MAX = sensivity;
+        int V_WHITE_MAX = 255;
+
+
+        for (int y = 0; y < src_hsv.cols; y++)
+        {
+            for (int x = 0; x < src_hsv.rows; x++)
+            {
+                // получаем HSV-компоненты пикселя
+                int H = static_cast<int>(splitedHsv[0].at<uchar>(x, y));        // Тон
+                int S = static_cast<int>(splitedHsv[1].at<uchar>(x, y));        // Интенсивность
+                int V = static_cast<int>(splitedHsv[2].at<uchar>(x, y));        // Яркость
+
+                //Если яркость слишком низкая либо Тон не попадает у заданный диапазон, то закрашиваем белым
+                if (!(S_WHITE_MIN <= S && S <= S_WHITE_MAX && V_WHITE_MIN <= V && V <= V_WHITE_MAX))
+                {
+                    src_hsv.at<Vec3b>(x, y)[0] = 0;
+                    src_hsv.at<Vec3b>(x, y)[1] = 0;
+                    src_hsv.at<Vec3b>(x, y)[2] = 0;
+                }
+            }
+        }
+        imshow("src_hsv", src_hsv);
+
+        Canny(src_hsv, src_canny, 200, 360);
+        //imshow("canny", src_canny);
+
+        vector<Vec4f> lines;
+        HoughLinesP(src_canny, lines, 1, CV_PI / 180, 150, 5, 8);
+
+        const double MIN_SLOPE = 0.3;
+        const double MAX_SLOPE = 0.7;
+
+        int count = 0;
+        vector< tuple<Point, Point> > left, right;
+        for (auto & line : lines)
+        {
+            int x1 = line[0];
+            int y1 = line[1];
+            int x2 = line[2];
+            int y2 = line[3];
+
+            if (x1 > x2)
+            {
+                int temp_x1 = x1;
+                int temp_y1 = y1;
+                x1 = x2;
+                y1 = y2;
+                x2 = temp_x1;
+                y2 = temp_y1;
+            }
+
+            if (x2 != x1)
+            {
+                double slope = double(y2 - y1) / (x2 - x1);
+                int epsilon = 20;
+
+                if (MIN_SLOPE <= abs(slope) && abs(slope) <= MAX_SLOPE && y2 >= src.rows / 2 && y1 >= src.rows / 2 && abs(y2 - y1) >= epsilon)
+                {
+//                    String text1 = "(" + to_string(x1) + "," + to_string(y1) + ")";
+//                    String text2 = "(" + to_string(x2) + "," + to_string(y2) + ")";
+//                    int fontFace = FONT_HERSHEY_SCRIPT_SIMPLEX;
+//                    double fontScale = 1;
+//                    int thickness = 1;
+//                    int baseline=0;
+//                    Size textSize1 = getTextSize(text1, fontFace, fontScale, thickness, &baseline);
+//                    Size textSize2 = getTextSize(text2, fontFace, fontScale, thickness, &baseline);
+//                    baseline += thickness;
+//
+//                    Point textOrg1(x1,y1);  // Position of the text
+//                    Point textOrg2(x2,y2);  // Position of the text
+//
+//                    putText(result, text1, textOrg1, fontFace, fontScale,
+//                            Scalar(0, 0, 0), thickness, 8);
+//                    putText(result, text2, textOrg2, fontFace, fontScale,
+//                            Scalar(0, 0, 0), thickness, 8);
+
+                    if (y1 > y2) // если прямая нашлась слева от центра
+                    {
+                        if (x1 < src.cols / 2 && x2 < src.cols / 2) // если прямая полностью находится слева
+                        {
+                            left.emplace_back(make_tuple(Point(x1, y1), Point(x2, y2)));
+                        }
+                    }
+                    else // если прямая нашлась справа от центра
+                    {
+                        if (x1 > src.cols / 2 && x2 > src.cols / 2) // если прямая полностью находится справа
+                        {
+                            right.emplace_back(make_tuple(Point(x1, y1), Point(x2, y2)));
+                        }
+                    }
+                    //cv::line(result, Point(x1, y1), Point(x2, y2), Scalar(0, 0, 0), 1);
+                }
+            }
+        }
+        for (auto & line : left)
+        {
+            Point pt1, pt2;
+            pt1 = get<0>(line);
+            pt2 = get<1>(line);
+
+            cv::line(src, pt1, pt2, Scalar(255, 0, 0), 2);
+        }
+        for (auto & line : right)
+        {
+            Point pt1, pt2;
+            pt1 = get<0>(line);
+            pt2 = get<1>(line);
+
+            cv::line(src, pt1, pt2, Scalar(0, 255, 0), 2);
+        }
+        cout << left.size() << " - " << right.size() << endl;
+
+        //imshow("result", result);
+        imshow("src", src);
+
+        int k = waitKey(25);
+        if (k == 27)
+        {
             break;
         }
     }
@@ -897,5 +1058,6 @@ int main()
     const string PATH_road3 = "../videos/road3.mp4";
 
     //selectingLinesUsingHoughMethod(PATH_road3);
-    selectingLinesUsingGradient(PATH_road3);
+    //selectingLinesUsingGradient(PATH_road3);
+    findHorizon(PATH_road3);
 }
