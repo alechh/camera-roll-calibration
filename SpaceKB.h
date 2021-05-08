@@ -1,4 +1,5 @@
-#include <set>
+#include <vector>
+
 using namespace std;
 
 #ifndef TEST_OPENCV_SPACEKB_H
@@ -7,9 +8,9 @@ using namespace std;
 
 class SpaceKB
 {
-    set <tuple<double, double>> points;
+    std::vector < tuple<double, double> > points;
 public:
-    SpaceKB(set< tuple<double, double> > points);
+    SpaceKB(vector< tuple<double, double> > points);
     void print_points();
     void approaching_straight_line(double &approaching_x, double &approaching_y);
 };

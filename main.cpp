@@ -46,7 +46,7 @@ void calculatingPoints(double rho, double theta, Point &pt1, Point &pt2)
  */
 void makeSpaceKB(double &result_x, vector <tuple<Point, Point>> vertical_lines)
 {
-    set< tuple<double, double> > coefficientsKB;  // Коэффициенты b и k прямых x = ky+b для построения пространства Kb
+    vector< tuple<double, double> > coefficientsKB;  // Коэффициенты b и k прямых x = ky+b для построения пространства Kb
 
     for (auto & vertical_line : vertical_lines)
     {
@@ -60,7 +60,7 @@ void makeSpaceKB(double &result_x, vector <tuple<Point, Point>> vertical_lines)
         double k = - double((pt2.x - pt1.x)) / (pt2.y - pt1.y);
         double b = pt1.x - pt1.y * double(pt2.x - pt1.x) / (pt2.y - pt1.y);
 
-        coefficientsKB.insert(make_tuple(b, k));
+        coefficientsKB.emplace_back(make_tuple(b, k));
     }
 
     if (coefficientsKB.begin() != coefficientsKB.end())  // если нашлось хотя бы 2 прямые
@@ -74,12 +74,7 @@ void makeSpaceKB(double &result_x, vector <tuple<Point, Point>> vertical_lines)
 
         if (approaching_x != -1 && approaching_y != -1)
         {
-            Point pt;
-            pt.x = approaching_x;
-            pt.y = approaching_y;
-
             result_x = approaching_x;
-
             // cout << "Вычисленная точка: (" << approaching_x << " ; " << approaching_y << " )" << endl;
         }
     }
@@ -903,7 +898,22 @@ void selectingLinesUsingGradient(T path, double resize = 1)
     }
 }
 
-void findHorizon(const string PATH)
+void manuallySelectingHorizonLine(Mat &src)
+{
+    Point pt1, pt2;
+
+    pt1.x = 0;
+    pt1.y = src.rows / 2 - 5;
+
+    pt2.x = src.cols - 1;
+    pt2.y = src.rows / 2 + 55;
+
+    line(src, pt1, pt2, Scalar(0, 0, 255), 1);
+
+    imshow("src", src);
+}
+
+void findRoadMarkings(const string PATH)
 {
     VideoCapture capture(PATH);
     Mat src, src_canny;
@@ -911,6 +921,7 @@ void findHorizon(const string PATH)
     while (true)
     {
         capture >> src;
+
         Mat result(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
 
         Mat src_hsv = Mat(src.cols, src.rows, 8, 3);
@@ -938,7 +949,6 @@ void findHorizon(const string PATH)
                 int S = static_cast<int>(splitedHsv[1].at<uchar>(x, y));        // Интенсивность
                 int V = static_cast<int>(splitedHsv[2].at<uchar>(x, y));        // Яркость
 
-                //Если яркость слишком низкая либо Тон не попадает у заданный диапазон, то закрашиваем белым
                 if (!(S_WHITE_MIN <= S && S <= S_WHITE_MAX && V_WHITE_MIN <= V && V <= V_WHITE_MAX))
                 {
                     src_hsv.at<Vec3b>(x, y)[0] = 0;
@@ -947,19 +957,14 @@ void findHorizon(const string PATH)
                 }
             }
         }
-        imshow("src_hsv", src_hsv);
 
         Canny(src_hsv, src_canny, 200, 360);
-        //imshow("canny", src_canny);
 
         vector<Vec4f> lines;
         HoughLinesP(src_canny, lines, 1, CV_PI / 180, 150, 5, 8);
 
-        const double MIN_SLOPE = 0.3;
-        const double MAX_SLOPE = 0.7;
+        vector< tuple<Point, Point> > left, right, roadMarkings; // здесь будем хранить точки прямых левее и правее от центра
 
-        int count = 0;
-        vector< tuple<Point, Point> > left, right;
         for (auto & line : lines)
         {
             int x1 = line[0];
@@ -969,6 +974,7 @@ void findHorizon(const string PATH)
 
             if (x1 > x2)
             {
+                // делаем, чтобы крайняя левая точка прямой была (x1,y1) для удобства
                 int temp_x1 = x1;
                 int temp_y1 = y1;
                 x1 = x2;
@@ -977,58 +983,23 @@ void findHorizon(const string PATH)
                 y2 = temp_y1;
             }
 
-            if (x2 != x1)
+            if (x2 != x1) // если прямая не вертикальная
             {
+                const double MIN_SLOPE = 0.3;
+                const double MAX_SLOPE = 0.7;
+
                 double slope = double(y2 - y1) / (x2 - x1);
                 int epsilon = 20;
 
                 if (MIN_SLOPE <= abs(slope) && abs(slope) <= MAX_SLOPE && y2 >= src.rows / 2 && y1 >= src.rows / 2 && abs(y2 - y1) >= epsilon)
                 {
-//                    String text1 = "(" + to_string(x1) + "," + to_string(y1) + ")";
-//                    String text2 = "(" + to_string(x2) + "," + to_string(y2) + ")";
-//                    int fontFace = FONT_HERSHEY_SCRIPT_SIMPLEX;
-//                    double fontScale = 1;
-//                    int thickness = 1;
-//                    int baseline=0;
-//                    Size textSize1 = getTextSize(text1, fontFace, fontScale, thickness, &baseline);
-//                    Size textSize2 = getTextSize(text2, fontFace, fontScale, thickness, &baseline);
-//                    baseline += thickness;
-//
-//                    Point textOrg1(x1,y1);  // Position of the text
-//                    Point textOrg2(x2,y2);  // Position of the text
-//
-//                    putText(result, text1, textOrg1, fontFace, fontScale,
-//                            Scalar(0, 0, 0), thickness, 8);
-//                    putText(result, text2, textOrg2, fontFace, fontScale,
-//                            Scalar(0, 0, 0), thickness, 8);
-
-                    if (y1 > y2) // если прямая нашлась слева от центра
-                    {
-                        if (x1 < src.cols / 2 && x2 < src.cols / 2) // если прямая полностью находится слева
-                        {
-                            left.emplace_back(make_tuple(Point(x1, y1), Point(x2, y2)));
-                        }
-                    }
-                    else // если прямая нашлась справа от центра
-                    {
-                        if (x1 > src.cols / 2 && x2 > src.cols / 2) // если прямая полностью находится справа
-                        {
-                            right.emplace_back(make_tuple(Point(x1, y1), Point(x2, y2)));
-                        }
-                    }
-                    //cv::line(result, Point(x1, y1), Point(x2, y2), Scalar(0, 0, 0), 1);
+                    // если нашлась прямая с нужным наклоном, в нижней половине изображения и достаточная по длине
+                    roadMarkings.emplace_back(make_tuple(Point(x1, y1), Point(x2, y2)));
                 }
             }
         }
-        for (auto & line : left)
-        {
-            Point pt1, pt2;
-            pt1 = get<0>(line);
-            pt2 = get<1>(line);
 
-            cv::line(src, pt1, pt2, Scalar(255, 0, 0), 2);
-        }
-        for (auto & line : right)
+        for (auto & line : roadMarkings)
         {
             Point pt1, pt2;
             pt1 = get<0>(line);
@@ -1036,7 +1007,30 @@ void findHorizon(const string PATH)
 
             cv::line(src, pt1, pt2, Scalar(0, 255, 0), 2);
         }
-        cout << left.size() << " - " << right.size() << endl;
+
+        vector< tuple<double, double> > coefficientsKB;
+        double result_x, result_y;
+
+        for (auto & line : roadMarkings)
+        {
+            Point pt1, pt2;
+            pt1 = get<0>(line);
+            pt2 = get<1>(line);
+
+            // x = k * y + b
+            double k = - double((pt2.x - pt1.x)) / (pt2.y - pt1.y);
+            double b = pt1.x - pt1.y * double(pt2.x - pt1.x) / (pt2.y - pt1.y);
+
+            coefficientsKB.emplace_back(make_tuple(b, k));
+        }
+
+        if (coefficientsKB.begin() != coefficientsKB.end())  // если нашлось хотя бы 2 прямые
+        {
+            SpaceKB spaceKb(coefficientsKB);
+            spaceKb.approaching_straight_line(result_x, result_y);  // вычисление координат точки пересечения прямых
+        }
+
+        circle(src, Point(result_x, result_y), 2, Scalar(0, 0, 255), 2);
 
         //imshow("result", result);
         imshow("src", src);

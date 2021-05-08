@@ -4,7 +4,7 @@
 #include <utility>
 
 // Constructor
-SpaceKB::SpaceKB(set< tuple<double, double> > points): points(std::move(points)) {};
+SpaceKB::SpaceKB(vector< tuple<double, double> > points): points(std::move(points)) {};
 
 void SpaceKB::print_points()
 {
@@ -51,6 +51,6 @@ void SpaceKB::approaching_straight_line(double &approaching_x, double &approachi
         // cout << "Приближающая прямая (n=" << n << "): x = " << a << " * y + " << b << "" << endl;
 
         approaching_x = b;
-        approaching_y = -a;
+        approaching_y = a;
     }
 }
