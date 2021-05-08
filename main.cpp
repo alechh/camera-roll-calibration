@@ -898,7 +898,7 @@ void selectingLinesUsingGradient(T path, double resize = 1)
     }
 }
 
-void manuallySelectingHorizonLine(Mat &src)
+tuple<Point, Point> manuallySelectingHorizonLine(Mat src)
 {
     Point pt1, pt2;
 
@@ -908,12 +908,45 @@ void manuallySelectingHorizonLine(Mat &src)
     pt2.x = src.cols - 1;
     pt2.y = src.rows / 2 + 55;
 
-    line(src, pt1, pt2, Scalar(0, 0, 255), 1);
-
-    imshow("src", src);
+    return make_tuple(pt1, pt2);
 }
 
-void findRoadMarkings(const string PATH)
+Point findVanishingPointLane( vector< tuple<Point, Point> > roadMarkings)
+{
+    vector< tuple<double, double> > coefficientsKB;
+    double result_x, result_y;
+
+    for (auto & line : roadMarkings)
+    {
+        Point pt1, pt2;
+        pt1 = get<0>(line);
+        pt2 = get<1>(line);
+
+        // x = k * y + b
+        double k = - double((pt2.x - pt1.x)) / (pt2.y - pt1.y);
+        double b = pt1.x - pt1.y * double(pt2.x - pt1.x) / (pt2.y - pt1.y);
+
+        coefficientsKB.emplace_back(make_tuple(b, k));
+    }
+
+    if (coefficientsKB.begin() != coefficientsKB.end())  // если нашлось хотя бы 2 прямые
+    {
+        SpaceKB spaceKb(coefficientsKB);
+        spaceKb.approaching_straight_line(result_x, result_y);  // вычисление координат точки пересечения прямых
+    }
+
+    Point van_point_lane;
+
+    // TODO можно пользоваться заранее вычисленной точкой, а можно вычислять ее онлайн
+    // van_point_lane.x = result_x;
+    // van_point_lane.y = result_y;
+    van_point_lane.x = 586;
+    van_point_lane.y = 428;
+
+    return van_point_lane;
+}
+
+void findRoadMarkingLines(const string PATH)
 {
     VideoCapture capture(PATH);
     Mat src, src_canny;
@@ -963,7 +996,7 @@ void findRoadMarkings(const string PATH)
         vector<Vec4f> lines;
         HoughLinesP(src_canny, lines, 1, CV_PI / 180, 150, 5, 8);
 
-        vector< tuple<Point, Point> > left, right, roadMarkings; // здесь будем хранить точки прямых левее и правее от центра
+        vector< tuple<Point, Point> > roadMarkings; // здесь будем хранить точки прямых левее и правее от центра
 
         for (auto & line : lines)
         {
@@ -999,45 +1032,17 @@ void findRoadMarkings(const string PATH)
             }
         }
 
-        for (auto & line : roadMarkings)
-        {
-            Point pt1, pt2;
-            pt1 = get<0>(line);
-            pt2 = get<1>(line);
+        Point van_point_lane = findVanishingPointLane(roadMarkings);
 
-            cv::line(src, pt1, pt2, Scalar(0, 255, 0), 2);
-        }
 
-        vector< tuple<double, double> > coefficientsKB;
-        double result_x, result_y;
-
-        for (auto & line : roadMarkings)
-        {
-            Point pt1, pt2;
-            pt1 = get<0>(line);
-            pt2 = get<1>(line);
-
-            // x = k * y + b
-            double k = - double((pt2.x - pt1.x)) / (pt2.y - pt1.y);
-            double b = pt1.x - pt1.y * double(pt2.x - pt1.x) / (pt2.y - pt1.y);
-
-            coefficientsKB.emplace_back(make_tuple(b, k));
-        }
-
-        if (coefficientsKB.begin() != coefficientsKB.end())  // если нашлось хотя бы 2 прямые
-        {
-            SpaceKB spaceKb(coefficientsKB);
-            spaceKb.approaching_straight_line(result_x, result_y);  // вычисление координат точки пересечения прямых
-        }
-
-        circle(src, Point(result_x, result_y), 2, Scalar(0, 0, 255), 2);
-
-        //imshow("result", result);
-        imshow("src", src);
+        src.release();
+        src_hsv.release();
+        src_canny.release();
 
         int k = waitKey(25);
         if (k == 27)
         {
+            capture.release();
             break;
         }
     }
@@ -1053,5 +1058,5 @@ int main()
 
     //selectingLinesUsingHoughMethod(PATH_road3);
     //selectingLinesUsingGradient(PATH_road3);
-    findHorizon(PATH_road3);
+    findRoadMarkingLines(PATH_road3);
 }
