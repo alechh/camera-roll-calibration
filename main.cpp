@@ -738,11 +738,9 @@ vector< tuple<Point, Point> > findRoadMarkingLines(Mat src)
 
     int sensivity = 120;
 
-    int H_WHITE_MIN = 0;
     int S_WHITE_MIN = 0;
     int V_WHITE_MIN = 255 - sensivity;
 
-    int H_WHITE_MAX = 255;
     int S_WHITE_MAX = sensivity;
     int V_WHITE_MAX = 255;
 
