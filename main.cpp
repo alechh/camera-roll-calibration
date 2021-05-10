@@ -44,7 +44,7 @@ void calculatingPoints(double rho, double theta, Point &pt1, Point &pt2)
  * Making SpaceKB to find the approximating line through linear regression
  * @param vertical_lines -- vector of points through which the lines pass
  */
-void makeSpaceKB(double &result_x, vector <tuple<Point, Point>> vertical_lines)
+void makeSpaceKB(double &result_x, double &result_y, vector <tuple<Point, Point>> vertical_lines)
 {
     vector< tuple<double, double> > coefficientsKB;  // Коэффициенты b и k прямых x = ky+b для построения пространства Kb
 
@@ -75,7 +75,7 @@ void makeSpaceKB(double &result_x, vector <tuple<Point, Point>> vertical_lines)
         if (approaching_x != -1 && approaching_y != -1)
         {
             result_x = approaching_x;
-            // cout << "Вычисленная точка: (" << approaching_x << " ; " << approaching_y << " )" << endl;
+            result_y = approaching_y;
         }
     }
 }
@@ -193,11 +193,38 @@ void drawXOnImage(Mat &src, double x)
 template <class T>
 void bubbleSort(T *values, int size)
 {
+    int index_of_last_not_nan;
+    for (int i = size - 1; i >= 0; i--)
+    {
+        if (!isnan(values[i]))
+        {
+            index_of_last_not_nan = i;
+            break;
+        }
+    }
+
+    for (int i = 0; i < size; i++)
+    {
+        if (isnan(values[i]))
+        {
+            std::swap(values[i], values[index_of_last_not_nan]);
+
+            for (int i = size - 1; i >= 0; i--)
+            {
+                if (!isnan(values[i]))
+                {
+                    index_of_last_not_nan = i;
+                    break;
+                }
+            }
+        }
+    }
+
     for (size_t i = 0; i + 1 < size; i++)
     {
         for (size_t j = 0; j + 1 < size - i; j++)
         {
-            if (values[j + 1] < values[j])
+            if (values[j + 1] < values[j] && !isnan(values[j + 1]) && !isnan(values[j]))
             {
                 std::swap(values[j], values[j + 1]);
             }
@@ -255,8 +282,9 @@ void selectingLinesUsingHoughMethod(T path, double resize = 1)
         drawLines(src, vertical_lines);  // отрисовка прямых линий
 
         double result_x = 0;  // Вычисленная координата x точки схода прямых
+        double result_y = 0;
 
-        makeSpaceKB(result_x, vertical_lines);  // построение пространства Kb, чтобы найти приближающую прямую через
+        makeSpaceKB(result_x, result_y, vertical_lines);  // построение пространства Kb, чтобы найти приближающую прямую через
                                                   // линейную регрессию. Далее обратным отображением находим точку схода прямых
 
         if (n % NUMBER_OF_MEDIAN_VALUES == 0)  // Если нужно провести медианный фильтр
@@ -614,74 +642,6 @@ void roiForVerticalLines(vector< tuple<Point, Point> > &lines, int x_roi, int wi
 }
 
 /**
- * Selecting a horizon line using a gradient: select the longest horizontal segment in the middle part of the image
- * and draw a straight line through it
- * @param src -- Input image
- */
-void findHorizonUsingGradient(Mat &src)
-{
-    int *arr = new int[src.rows / 3]; // массив для длин максимальных отрезков каждой линии серединной части изображения
-    for (int temp = 0; temp < src.rows / 3; temp++)
-    {
-        arr[temp] = 0;
-    }
-
-    // итерируемся по строкам серединной части изображения и в каждой находим самый длинный отрезок
-    for (int i = src.rows / 3; i < src.rows / 3 * 2; i++)
-    {
-        int *row_arr = new int[src.cols]; // массив для длин отрезков на линии
-        int curr_index = 0; // индекс для массива
-        for (int temp = 0; temp < src.cols; temp++)
-        {
-            row_arr[temp] = 0;
-        }
-
-        // итерируемся по строчке и считаем длины непрерывных кластеров
-        for (int j = 1; j < src.cols; j++)
-        {
-            if (src.at<Vec3b>(i, j) == src.at<Vec3b>(i, j - 1) && src.at<Vec3b>(i, j) != Vec3b(0, 0, 255))
-            {
-                // если идем по отрезку (не рассматриваем красные отрезки)
-                row_arr[curr_index]++;
-            }
-            else
-            {
-                // отрезок кончился
-                curr_index++;
-                row_arr[curr_index]++; // длина следующего отрезка пока = 1
-            }
-        }
-
-        // отыскиваем максимальную длину отрезка с текущей линии
-        int max = -1;
-        for (int temp = 0; temp < src.cols; temp++)
-        {
-            if (row_arr[temp] > max)
-            {
-                max = row_arr[temp];
-            }
-        }
-
-        arr[i - src.rows / 3] = max; // записываем в массив максимальных длин отрезков линий
-    }
-
-    // отыскиваем самый длинный отрезок из всех длинных отрезков
-    int max = -1;
-    int index_of_max = 0;
-    for (int i = 0; i < src.rows / 3; i++)
-    {
-        if (arr[i] > max)
-        {
-            index_of_max = i + src.rows / 3;
-            max = arr[i];
-        }
-    }
-
-    // рисуем прямую через самый длинный отрезок
-    line(src, Point(0, index_of_max), Point(src.cols - 1, index_of_max), Scalar(255, 255, 0), 2);
-}
-
-/**
  * A filter that allows to determine whether the same number of straight lines were found
  * to the left and right of the middle of the image
  * @param vertical_lines -- vector of pairs of points of a straight line
@@ -716,185 +676,6 @@ bool quantitativeFilter(vector < tuple<Point, Point> > vertical_lines, int src_c
     else
     {
         return false;
-    }
-}
-
-/**
- * Selection of continuous horizontal segments
- * @param src -- Input image
- * @param delta -- the minimum length of the segment that suits us
- */
-void selectingHorizontalSegments(Mat &src, int delta = 30)
-{
-    auto intervalsList = new IntervalsList;
-
-    for (int i = 0; i < src.rows; i++)
-    {
-        int begin = 0;
-        int end = 0;
-        for (int j = 1; j < src.cols; j++)
-        {
-            if (src.at<Vec3b>(i, j) != src.at<Vec3b>(i, j - 1))
-            {
-                end = j - 1;
-                if (end - begin > delta)
-                {
-                    intervalsList->addInterval(begin, end, i, 0, src.at<Vec3b>(i, j - 1));
-                }
-                begin = j;
-            }
-        }
-
-        // добавление последнего отрезка строки
-        intervalsList->addInterval(begin, src.cols - 1, i, 0, src.at<Vec3b>(i, src.cols - 1));
-    }
-
-    // рисуем отрезки
-    Mat res(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
-    auto curr = intervalsList->head;
-    while (curr)
-    {
-        if (src.rows / 2 - 100 <= curr->y_coordinate && curr->y_coordinate <= src.rows / 2 + 100 && curr->color == Vec3b(0, 0, 0))
-        {
-            // если отрезки находятся в центральной части горизонтальной части изображения
-            // и их цвет черный
-
-            Point pt1, pt2;
-            pt1.x = curr->begin;
-            pt1.y = curr->y_coordinate;
-            pt2.x = curr->end;
-            pt2.y = curr->y_coordinate;
-
-            line(res, pt1, pt2, Scalar(0, 0, 0), 1);
-        }
-        curr = curr->next;
-    }
-
-    delete intervalsList;
-    imshow("horizontal", res);
-}
-
-template <class T>
-void selectingLinesUsingGradient(T path, double resize = 1)
-{
-    VideoCapture capture(path);
-    if (!capture.isOpened())
-    {
-        cerr<<"Error"<<endl;
-        return;
-    }
-
-    Mat src, src_vectorization;
-    Mat grad_x, grad_y;
-
-//     VideoWriter outputVideo;
-//     Size S = Size((int) capture.get(CAP_PROP_FRAME_WIDTH), (int) capture.get(CAP_PROP_FRAME_HEIGHT));
-//     int ex = static_cast<int>(capture.get(CAP_PROP_FOURCC));
-//     outputVideo.open("../result.mp4", ex, capture.get(CAP_PROP_FPS), S, true);
-
-    int n = 1;  // Счетчик для медианного фильтра
-    const int NUMBER_OF_MEDIAN_VALUES = 10;  // Раз во сколько кадров проводим медианный фильтр
-    double valuesForMedianFilter[NUMBER_OF_MEDIAN_VALUES - 1];  // Массив значений, который будет сортироваться для медианного фильтра
-    double prevResult_x = 0;  // Сохранение предыдущего значения, чтобы выводить на экран
-
-    double result_x = 0;  // будущая вычисленная координата x точки схода прямых
-    while (true)
-    {
-        capture >> src;
-
-        int x_roi = src.cols / 4;
-        int width_roi = src.cols / 2;
-
-        // получение углов градиента
-        simpleSobel(src, grad_x, grad_y);
-
-        // кластеризация по углам градиента
-        Mat src_clustering(src.rows, src.cols, src.type(), Scalar(0, 0, 0));
-        clustering(grad_x, grad_y, src_clustering);
-
-        //findHorizonUsingGradient(src_clustering);
-        //selectingHorizontalSegments(src_clustering);
-
-        // векторизация границ кластеров
-        vectorisation(src_clustering, src_vectorization);
-
-        // отбираем вертикальные отрезки
-        Mat src_polylines(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
-        makePolylines(src_vectorization, src_polylines, 15, x_roi, width_roi);
-
-        // выделяем контуры
-//        Mat src_canny;
-//        cvtColor(src_polylines, src_canny, COLOR_BGR2GRAY);
-//        Canny(src_canny, src_canny, 30, 200);
-//        vector< vector<Point> > contours;
-//        vector<Vec4i> hierarchy;
-//        findContours(src_canny, contours, hierarchy, RETR_TREE, CHAIN_APPROX_NONE);
-//
-//        // рисуем контуры
-//        Mat src_contour(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
-//        for (int i = 0; i < contours.size(); i++)
-//        {
-//            drawContours(src_contour,contours, i, Scalar(0, 0, 0), -1);
-//        }
-
-        // выделяем прямые по контурам методов Хафа
-        vector<Vec2f> lines = findLinesHough(src_polylines);  // нахождение прямых линий
-        vector < tuple<Point, Point> > vertical_lines = selectionOfVerticalLines(lines);  // выбор вертикальных прямых
-
-        // оставляем прямые, которые вписываются с центральную часть ширины width_roi, которая начинается с x_roi
-        roiForVerticalLines(vertical_lines, x_roi, width_roi);
-
-        drawLines(src, vertical_lines);  // отрисовка прямых
-        //makeSpaceKB(result_x, vertical_lines); // построение пространства Kb, чтобы найти приближающую прямую через
-                                                             // линейную регрессию. Далее обратным отображением находим точку схода прямых
-
-        // проверяем, что нашлось примерно поровну прямых слева и справа
-        if (quantitativeFilter(vertical_lines, src.cols / 2, 1.5))
-        {
-            makeSpaceKB(result_x, vertical_lines);  // построение пространства Kb, чтобы найти приближающую прямую через
-            // линейную регрессию. Далее обратным отображением находим точку схода прямых
-        }
-
-        if (n % NUMBER_OF_MEDIAN_VALUES == 0)  // Если нужно провести медианный фильтр
-        {
-            prevResult_x = medianFilter(valuesForMedianFilter, NUMBER_OF_MEDIAN_VALUES);
-        }
-        else
-        {
-            valuesForMedianFilter[n - 1] = result_x;
-        }
-
-        drawVerticalLine(src, prevResult_x);
-
-        imshow("src", src);
-
-        if (n % NUMBER_OF_MEDIAN_VALUES == 0)
-        {
-            n = 1;
-        }
-        else
-        {
-            n++;
-        }
-
-//        outputVideo << src;  // сохранение результата в файл
-
-        // освобождаем память
-        grad_x.release();
-        grad_y.release();
-        src_polylines.release();
-        src_vectorization.release();
-        src_clustering.release();
-        //src_contour.release();
-        src.release();
-
-        int k = waitKey(25);
-        if (k == 27)
-        {
-            // освобождаем память
-            capture.release();
-            break;
-        }
     }
 }
 
@@ -946,102 +727,222 @@ Point findVanishingPointLane( vector< tuple<Point, Point> > roadMarkings)
     return van_point_lane;
 }
 
-void findRoadMarkingLines(const string PATH)
+vector< tuple<Point, Point> > findRoadMarkingLines(Mat src)
 {
-    VideoCapture capture(PATH);
-    Mat src, src_canny;
+    Mat src_canny;
+
+    Mat src_hsv = Mat(src.cols, src.rows, 8, 3);
+    vector<Mat> splitedHsv = vector<Mat>();
+    cvtColor(src, src_hsv, CV_RGB2HSV);
+    split(src_hsv, splitedHsv);
+
+    int sensivity = 120;
+
+    int H_WHITE_MIN = 0;
+    int S_WHITE_MIN = 0;
+    int V_WHITE_MIN = 255 - sensivity;
+
+    int H_WHITE_MAX = 255;
+    int S_WHITE_MAX = sensivity;
+    int V_WHITE_MAX = 255;
+
+
+    for (int y = 0; y < src_hsv.cols; y++)
+    {
+        for (int x = 0; x < src_hsv.rows; x++)
+        {
+            // получаем HSV-компоненты пикселя
+            int H = static_cast<int>(splitedHsv[0].at<uchar>(x, y));        // Тон
+            int S = static_cast<int>(splitedHsv[1].at<uchar>(x, y));        // Интенсивность
+            int V = static_cast<int>(splitedHsv[2].at<uchar>(x, y));        // Яркость
+
+            if (!(S_WHITE_MIN <= S && S <= S_WHITE_MAX && V_WHITE_MIN <= V && V <= V_WHITE_MAX))
+            {
+                src_hsv.at<Vec3b>(x, y)[0] = 0;
+                src_hsv.at<Vec3b>(x, y)[1] = 0;
+                src_hsv.at<Vec3b>(x, y)[2] = 0;
+            }
+        }
+    }
+
+    Canny(src_hsv, src_canny, 200, 360);
+
+    vector<Vec4f> lines;
+    HoughLinesP(src_canny, lines, 1, CV_PI / 180, 150, 5, 8);
+
+    vector< tuple<Point, Point> > roadMarkings; // здесь будем хранить точки прямых левее и правее от центра
+
+    for (auto & line : lines)
+    {
+        int x1 = line[0];
+        int y1 = line[1];
+        int x2 = line[2];
+        int y2 = line[3];
+
+        if (x1 > x2)
+        {
+            // делаем, чтобы крайняя левая точка прямой была (x1,y1) для удобства
+            int temp_x1 = x1;
+            int temp_y1 = y1;
+            x1 = x2;
+            y1 = y2;
+            x2 = temp_x1;
+            y2 = temp_y1;
+        }
+
+        if (x2 != x1) // если прямая не вертикальная
+        {
+            const double MIN_SLOPE = 0.3;
+            const double MAX_SLOPE = 0.7;
+
+            double slope = double(y2 - y1) / (x2 - x1);
+            int epsilon = 20;
+
+            if (MIN_SLOPE <= abs(slope) && abs(slope) <= MAX_SLOPE && y2 >= src.rows / 2 && y1 >= src.rows / 2 && abs(y2 - y1) >= epsilon)
+            {
+                // если нашлась прямая с нужным наклоном, в нижней половине изображения и достаточная по длине
+                roadMarkings.emplace_back(make_tuple(Point(x1, y1), Point(x2, y2)));
+            }
+        }
+    }
+
+    src.release();
+    src_hsv.release();
+    src_canny.release();
+
+    return roadMarkings;
+}
+
+template <class T>
+void selectingLinesUsingGradient(T path, double resize = 1)
+{
+    VideoCapture capture(path);
+    if (!capture.isOpened())
+    {
+        cerr<<"Error"<<endl;
+        return;
+    }
+
+    Mat src, src_vectorization;
+    Mat grad_x, grad_y;
+
+//     VideoWriter outputVideo;
+//     Size S = Size((int) capture.get(CAP_PROP_FRAME_WIDTH), (int) capture.get(CAP_PROP_FRAME_HEIGHT));
+//     int ex = static_cast<int>(capture.get(CAP_PROP_FOURCC));
+//     outputVideo.open("../result.mp4", ex, capture.get(CAP_PROP_FPS), S, true);
+
+    int n = 1;  // Счетчик для медианного фильтра
+    const int NUMBER_OF_MEDIAN_VALUES = 10;  // Раз во сколько кадров проводим медианный фильтр
+    double valuesForMedianFilterX[NUMBER_OF_MEDIAN_VALUES - 1];  // Массив значений, который будет сортироваться для медианного фильтра
+    double prevResult_x = 0;  // Сохранение предыдущего значения, чтобы выводить на экран
+    double valuesForMedianFilterY[NUMBER_OF_MEDIAN_VALUES - 1]; // массив значение координат y,чтобы после медианного фильтра восстановить точку van_point_verticals
+
+    double result_x = 0;
+    double result_y = 0;
+    Point van_point_verticals;
 
     while (true)
     {
         capture >> src;
 
-        Mat result(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
+        int x_roi = src.cols / 4;
+        int width_roi = src.cols / 2;
 
-        Mat src_hsv = Mat(src.cols, src.rows, 8, 3);
-        vector<Mat> splitedHsv = vector<Mat>();
-        cvtColor(src, src_hsv, CV_RGB2HSV);
-        split(src_hsv, splitedHsv);
+        // получение углов градиента
+        simpleSobel(src, grad_x, grad_y);
 
-        int sensivity = 120;
+        // кластеризация по углам градиента
+        Mat src_clustering(src.rows, src.cols, src.type(), Scalar(0, 0, 0));
+        clustering(grad_x, grad_y, src_clustering);
 
-        int H_WHITE_MIN = 0;
-        int S_WHITE_MIN = 0;
-        int V_WHITE_MIN = 255 - sensivity;
+        // векторизация границ кластеров
+        vectorisation(src_clustering, src_vectorization);
 
-        int H_WHITE_MAX = 255;
-        int S_WHITE_MAX = sensivity;
-        int V_WHITE_MAX = 255;
+        // отбираем вертикальные отрезки
+        Mat src_polylines(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
+        makePolylines(src_vectorization, src_polylines, 15, x_roi, width_roi);
 
+        // выделяем прямые по контурам методов Хафа
+        vector<Vec2f> lines = findLinesHough(src_polylines);
 
-        for (int y = 0; y < src_hsv.cols; y++)
+        // выбор вертикальных прямых
+        vector < tuple<Point, Point> > vertical_lines = selectionOfVerticalLines(lines);
+
+        // оставляем прямые, которые вписываются с центральную часть ширины width_roi, которая начинается с x_roi
+        roiForVerticalLines(vertical_lines, x_roi, width_roi);
+
+        // отрисовка прямых
+        drawLines(src, vertical_lines);
+
+        makeSpaceKB(result_x, result_y, vertical_lines);
+
+        if (n % NUMBER_OF_MEDIAN_VALUES == 0)  // Если нужно провести медианный фильтр
         {
-            for (int x = 0; x < src_hsv.rows; x++)
-            {
-                // получаем HSV-компоненты пикселя
-                int H = static_cast<int>(splitedHsv[0].at<uchar>(x, y));        // Тон
-                int S = static_cast<int>(splitedHsv[1].at<uchar>(x, y));        // Интенсивность
-                int V = static_cast<int>(splitedHsv[2].at<uchar>(x, y));        // Яркость
+            prevResult_x = medianFilter(valuesForMedianFilterX, NUMBER_OF_MEDIAN_VALUES);
 
-                if (!(S_WHITE_MIN <= S && S <= S_WHITE_MAX && V_WHITE_MIN <= V && V <= V_WHITE_MAX))
+            // так как медианный фильтр делаем по координатам x, надо координате x сопоставить соответствующий y
+            for (int i = 0; i < NUMBER_OF_MEDIAN_VALUES - 1; i++)
+            {
+                if (valuesForMedianFilterX[i] == prevResult_x)
                 {
-                    src_hsv.at<Vec3b>(x, y)[0] = 0;
-                    src_hsv.at<Vec3b>(x, y)[1] = 0;
-                    src_hsv.at<Vec3b>(x, y)[2] = 0;
+                    van_point_verticals.x = prevResult_x;
+                    van_point_verticals.y = valuesForMedianFilterY[i];
+                    break;
                 }
             }
         }
-
-        Canny(src_hsv, src_canny, 200, 360);
-
-        vector<Vec4f> lines;
-        HoughLinesP(src_canny, lines, 1, CV_PI / 180, 150, 5, 8);
-
-        vector< tuple<Point, Point> > roadMarkings; // здесь будем хранить точки прямых левее и правее от центра
-
-        for (auto & line : lines)
+        else
         {
-            int x1 = line[0];
-            int y1 = line[1];
-            int x2 = line[2];
-            int y2 = line[3];
-
-            if (x1 > x2)
+            //проверяем, что нашлось примерно поровну прямых слева и справа
+            if (quantitativeFilter(vertical_lines, src.cols / 2, 1.5))
             {
-                // делаем, чтобы крайняя левая точка прямой была (x1,y1) для удобства
-                int temp_x1 = x1;
-                int temp_y1 = y1;
-                x1 = x2;
-                y1 = y2;
-                x2 = temp_x1;
-                y2 = temp_y1;
+                makeSpaceKB(result_x, result_y, vertical_lines);
             }
 
-            if (x2 != x1) // если прямая не вертикальная
-            {
-                const double MIN_SLOPE = 0.3;
-                const double MAX_SLOPE = 0.7;
-
-                double slope = double(y2 - y1) / (x2 - x1);
-                int epsilon = 20;
-
-                if (MIN_SLOPE <= abs(slope) && abs(slope) <= MAX_SLOPE && y2 >= src.rows / 2 && y1 >= src.rows / 2 && abs(y2 - y1) >= epsilon)
-                {
-                    // если нашлась прямая с нужным наклоном, в нижней половине изображения и достаточная по длине
-                    roadMarkings.emplace_back(make_tuple(Point(x1, y1), Point(x2, y2)));
-                }
-            }
+            valuesForMedianFilterX[n - 1] = result_x;
+            valuesForMedianFilterY[n - 1] = result_y;
         }
 
+        // нахождение линий дорожной разметки
+        vector< tuple<Point, Point> > roadMarkings = findRoadMarkingLines(src);
+
+        // определение точки пересечения дорожной разметки
         Point van_point_lane = findVanishingPointLane(roadMarkings);
 
+        // получение линии горизонта, размеченной вручную
+        tuple<Point, Point> horizonLine = manuallySelectingHorizonLine(src);
+        Point pt1, pt2;
+        pt1 = get<0>(horizonLine);
+        pt2 = get<1>(horizonLine);
 
+        line(src, van_point_lane, van_point_verticals, Scalar(0, 255, 0), 2);
+        line(src, pt1, pt2, Scalar(0, 0, 255), 2);
+
+        imshow("src", src);
+
+        if (n % NUMBER_OF_MEDIAN_VALUES == 0)
+        {
+            n = 1;
+        }
+        else
+        {
+            n++;
+        }
+
+//        outputVideo << src;  // сохранение результата в файл
+
+        // освобождаем память
+        grad_x.release();
+        grad_y.release();
+        src_polylines.release();
+        src_vectorization.release();
+        src_clustering.release();
         src.release();
-        src_hsv.release();
-        src_canny.release();
 
         int k = waitKey(25);
         if (k == 27)
         {
+            // освобождаем память
             capture.release();
             break;
         }
@@ -1057,6 +958,5 @@ int main()
     const string PATH_road3 = "../videos/road3.mp4";
 
     //selectingLinesUsingHoughMethod(PATH_road3);
-    //selectingLinesUsingGradient(PATH_road3);
-    findRoadMarkingLines(PATH_road3);
+    selectingLinesUsingGradient(PATH_road3);
 }

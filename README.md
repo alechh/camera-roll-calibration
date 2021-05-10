@@ -5,13 +5,13 @@
 Repository for testing some OpenCV features
 
 ## Requirements
-* CMake (>= 3.17)
-* OpenCV (>= 4.4.0)
+*  CMake (>= 3.17)
+*  OpenCV (>= 4.4.0)
 
 ## Build
 To build the project you should run these commands in the project direcroty
  
-``` 
+```bash 
 mkdir build && cd build
 cmake ..
 make      
