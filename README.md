@@ -1,6 +1,6 @@
 # test-opencv
 
-[![Build Status](https://travis-ci.com/alechh/test-opencv.svg?branch=master)](https://travis-ci.com/alechh/test-opencv)
+[![Build Status](https://travis-ci.com/alechh/online-camera-roll-calibration.svg?branch=master)](https://travis-ci.com/alechh/online-camera-roll-calibration)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/afc68918493249c4b620473bf3fccdfd)](https://www.codacy.com/gh/alechh/test-opencv/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=alechh/test-opencv&amp;utm_campaign=Badge_Grade)
 
 Repository for solving the problem of online calibration of the camera roll in the coordinate system of the machine
