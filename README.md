@@ -6,11 +6,11 @@
 Repository for solving the problem of online calibration of the camera roll in the coordinate system of the machine
 
 ## Requirements
-*    CMake (>= 3.17)
-*    OpenCV (>= 4.4.0)
+  *  CMake (>= 3.17)
+  *  OpenCV (>= 4.4.0)
 
 ## Build
-To build the project you should run these commands in the project direcroty
+To build the project you should run these commands in the project directory
  
 ```bash 
 mkdir build && cd build
