@@ -45,8 +45,8 @@ void SpaceKB::approaching_straight_line(double &approaching_x, double &approachi
         a = (Sx * Sy - Sxy) / (Sx * Sx - Sxx);
         b = (Sxy - a * Sxx) / Sx;
 
-        a = -a;
-        b = -b;
+//        a = -a;
+//        b = -b;
         //cout << "Приближающая прямая (n=" << n << "): y = " << a << " * x + " << b << "" << endl;
 
         // Получили y=ax+b, меняем коэфициенты, чтобы получить x=ay+b

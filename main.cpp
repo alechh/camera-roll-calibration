@@ -14,6 +14,7 @@
 #include "Interval.h"
 #include "ListOfIntervalsLists.h"
 #include "ListOfPolylines.h"
+#include "TLinearRegression.h"
 
 using namespace cv;
 using namespace std;
@@ -121,7 +122,7 @@ void drawLines(Mat &src, vector <tuple<Point, Point>> lines)
         pt1 = get<0>(line);
         pt2 = get<1>(line);
 
-        cv::line(src, pt1, pt2, CV_RGB(255,0,0), 1, CV_AA);  // отрисовка прямой
+        cv::line(src, pt1, pt2, CV_RGB(0,255,0), 1, CV_AA);  // отрисовка прямой
     }
 }
 
@@ -190,8 +191,7 @@ void drawXOnImage(Mat &src, double x)
             Scalar(0, 0, 0), thickness, 8);
 }
 
-template <class T>
-void bubbleSort(T *values, int size)
+void bubbleSort(double *values, int size)
 {
     int index_of_last_not_nan;
     for (int i = size - 1; i >= 0; i--)
@@ -209,11 +209,11 @@ void bubbleSort(T *values, int size)
         {
             std::swap(values[i], values[index_of_last_not_nan]);
 
-            for (int i = size - 1; i >= 0; i--)
+            for (int j = size - 1; j >= 0; j--)
             {
-                if (!isnan(values[i]))
+                if (!isnan(values[j]))
                 {
-                    index_of_last_not_nan = i;
+                    index_of_last_not_nan = j;
                     break;
                 }
             }
@@ -811,6 +811,93 @@ vector< tuple<Point, Point> > findRoadMarkingLines(Mat src)
     return roadMarkings;
 }
 
+
+double distToLine(Point pnt, LinearFunction f)
+{
+    // distance from point to line x - f.k * y - f.c = 0
+    return abs(double(pnt.x) - f.k * double(pnt.y) - f.b) / (sqrt(1 + f.k * f.k));
+}
+
+
+vector<TLinearRegression> calcRegressions(vector<Point> m_points)
+{
+    vector<TLinearRegression> regressions;
+
+    if (m_points.size() < 2)
+    {
+        return regressions;
+    }
+
+    TLinearRegression regression;
+
+    //add points 0-2 to regression
+    for (size_t i = 0; i < 3; i++)
+    {
+        regression.addPoint(m_points[i].x, m_points[i].y);
+    }
+
+    LinearFunction f = regression.calculate();
+
+    // TODO подобрать коэффициент вручную
+    double c_min_dist_threshold = 2;
+
+    for (size_t i = 3; i < m_points.size(); ++i)
+    {
+        Point pnt = m_points[i];
+
+        if (distToLine(pnt, f) < c_min_dist_threshold) //also try to use regression.eps() to appreciate curvature of added points sequence
+        {
+            regression.addPoint(m_points[i].x, m_points[i].y);
+        }
+        else
+        {
+            regressions.emplace_back(regression);
+            regression.clear();
+
+            while (i < m_points.size() - 2)
+            {
+                if (m_points[i].x == m_points[i + 1].x && m_points[i + 1].x == m_points[i + 2].x)
+                {
+                    // если у следующих 3х точек одна абсцисса
+                    i++;
+                }
+                else
+                {
+                    regression.addPoint(m_points[i].x, m_points[i].y);
+                    regression.addPoint(m_points[i + 1].x, m_points[i + 1].y);
+                    regression.addPoint(m_points[i + 2].x, m_points[i + 2].y);
+                    i += 2;
+                    break;
+                }
+            }
+        }
+        f = regression.calculate();
+        // TODO что делать с последними точками?
+    }
+
+    if (regressions.size() == 0)
+    {
+        // если все точки контура лежат на одной прямой, то regression так и не добавится в regressions
+        regressions.emplace_back(regression);
+    }
+    return regressions;
+}
+
+tuple<Point, Point> getPointsOfTheLine(double k, double b)
+{
+    // x = k * y + b.
+    Point pt1, pt2;
+
+    pt1.y = 0;
+    pt1.x = k * pt1.y + b;
+
+    pt2.y = 720;
+    pt2.x = k * pt2.y + b;
+
+    return make_tuple(pt1, pt2);
+}
+
+
 template <class T>
 void selectingLinesUsingGradient(T path, double resize = 1)
 {
@@ -832,12 +919,13 @@ void selectingLinesUsingGradient(T path, double resize = 1)
     int n = 1;  // Счетчик для медианного фильтра
     const int NUMBER_OF_MEDIAN_VALUES = 10;  // Раз во сколько кадров проводим медианный фильтр
     double valuesForMedianFilterX[NUMBER_OF_MEDIAN_VALUES - 1];  // Массив значений, который будет сортироваться для медианного фильтра
-    double prevResult_x = 0;  // Сохранение предыдущего значения, чтобы выводить на экран
     double valuesForMedianFilterY[NUMBER_OF_MEDIAN_VALUES - 1]; // массив значение координат y,чтобы после медианного фильтра восстановить точку van_point_verticals
+    double medianResult_x = 0;  // медианное значение для точки схода
 
-    double result_x = 0;
-    double result_y = 0;
-    Point van_point_verticals;
+    double result_x = 0; // координата x точки схода прямых
+    double result_y = 0; // координата y точки схода прямых
+
+    Point van_point_verticals; // точка схода прямых
 
     while (true)
     {
@@ -860,11 +948,62 @@ void selectingLinesUsingGradient(T path, double resize = 1)
         Mat src_polylines(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
         makePolylines(src_vectorization, src_polylines, 15, x_roi, width_roi);
 
-        // выделяем прямые по контурам методов Хафа
-        vector<Vec2f> lines = findLinesHough(src_polylines);
+        // выделяем контуры
+        cvtColor(src_polylines, src_polylines, COLOR_BGR2GRAY);
+        Canny(src_polylines, src_polylines, 30, 200);
+        vector< vector<Point> > contours;
+        vector<Vec4i> hierarchy;
+        findContours(src_polylines, contours, hierarchy, RETR_LIST, CHAIN_APPROX_NONE);
 
+        // рисуем контуры
+        Mat src_contour(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
+        for (int i = 0; i < contours.size(); i++)
+        {
+            drawContours(src_contour,contours, i, Scalar(0, 0, 0), 1);
+        }
+
+
+        vector <LinearFunction> linearFunctions; // вектор коэффициентов {k, b} линейных функций x = k * y + b
+
+        // линейная регрессия по всем контурам
+        for (size_t i = 0; i < contours.size(); i++)
+        {
+            vector <TLinearRegression> regressions = calcRegressions(contours[i]);
+
+            if (regressions.size() == 0)
+            {
+                continue;
+            }
+
+            // вычисление линейных функций x = k * y + b по полученным регрессиям
+            for (size_t j = 0; j < regressions.size(); j++)
+            {
+                linearFunctions.template emplace_back(regressions[j].calculate());
+            }
+        }
+
+        // получение вектора точек найденных вертикальных прямых
+        vector < tuple<Point, Point> > vertical_lines;
+        for (size_t i = 0; i < linearFunctions.size(); i++)
+        {
+            double delta = 0.2; // чтобы определить вертикальные прямые через угол наклона
+
+            if (!isnan(linearFunctions[i].k) && !isnan(linearFunctions[i].b) && abs(linearFunctions[i].k) < delta)
+            {
+                Point pt1, pt2;
+                tuple<Point, Point> points = getPointsOfTheLine(linearFunctions[i].k, linearFunctions[i].b);
+
+                pt1 = get<0>(points);
+                pt2 = get<1>(points);
+
+                vertical_lines.template emplace_back(make_tuple(pt1, pt2));
+            }
+        }
+
+        // выделяем прямые по контурам методов Хафа
+        //vector<Vec2f> lines = findLinesHough(src_polylines);
         // выбор вертикальных прямых
-        vector < tuple<Point, Point> > vertical_lines = selectionOfVerticalLines(lines);
+        //vector < tuple<Point, Point> > vertical_lines = selectionOfVerticalLines(lines);
 
         // оставляем прямые, которые вписываются с центральную часть ширины width_roi, которая начинается с x_roi
         roiForVerticalLines(vertical_lines, x_roi, width_roi);
@@ -872,18 +1011,22 @@ void selectingLinesUsingGradient(T path, double resize = 1)
         // отрисовка прямых
         drawLines(src, vertical_lines);
 
-        makeSpaceKB(result_x, result_y, vertical_lines);
+        // вычисляем точку схода прямых
+        // makeSpaceKB(result_x, result_y, vertical_lines);
 
-        if (n % NUMBER_OF_MEDIAN_VALUES == 0)  // Если нужно провести медианный фильтр
+        // медианный фильтр
+        if (n % NUMBER_OF_MEDIAN_VALUES == 0)
         {
-            prevResult_x = medianFilter(valuesForMedianFilterX, NUMBER_OF_MEDIAN_VALUES);
+            // Если нужно провести медианный фильтр
+
+            medianResult_x = medianFilter(valuesForMedianFilterX, NUMBER_OF_MEDIAN_VALUES);
 
             // так как медианный фильтр делаем по координатам x, надо координате x сопоставить соответствующий y
             for (int i = 0; i < NUMBER_OF_MEDIAN_VALUES - 1; i++)
             {
-                if (valuesForMedianFilterX[i] == prevResult_x)
+                if (valuesForMedianFilterX[i] == medianResult_x)
                 {
-                    van_point_verticals.x = prevResult_x;
+                    van_point_verticals.x = medianResult_x;
                     van_point_verticals.y = valuesForMedianFilterY[i];
                     break;
                 }
@@ -901,6 +1044,9 @@ void selectingLinesUsingGradient(T path, double resize = 1)
             valuesForMedianFilterY[n - 1] = result_y;
         }
 
+        // drawVerticalLine(src, van_point_verticals.x);
+
+
         // нахождение линий дорожной разметки
         vector< tuple<Point, Point> > roadMarkings = findRoadMarkingLines(src);
 
@@ -909,15 +1055,15 @@ void selectingLinesUsingGradient(T path, double resize = 1)
 
         // получение линии горизонта, размеченной вручную
         tuple<Point, Point> horizonLine = manuallySelectingHorizonLine(src);
-        Point pt1, pt2;
-        pt1 = get<0>(horizonLine);
-        pt2 = get<1>(horizonLine);
+        Point horizon_pt1 = get<0>(horizonLine);
+        Point horizon_pt2 = get<1>(horizonLine);
 
-        line(src, van_point_lane, van_point_verticals, Scalar(0, 255, 0), 2);
-        line(src, pt1, pt2, Scalar(0, 0, 255), 2);
+        line(src, van_point_lane, van_point_verticals, Scalar(255, 0, 0), 2);
+        line(src, horizon_pt1, horizon_pt2, Scalar(0, 0, 255), 2);
 
         imshow("src", src);
 
+        // увеличение счетчика для медианного фильтра
         if (n % NUMBER_OF_MEDIAN_VALUES == 0)
         {
             n = 1;

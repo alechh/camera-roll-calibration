@@ -3,7 +3,7 @@ project(test_opencv)
 
 set(CMAKE_CXX_STANDARD 14)
 
-add_executable(test_opencv main.cpp SpaceKB.cpp SpaceKB.h Interval.cpp Interval.h IntervalsList.cpp IntervalsList.h ListOfIntervalsLists.cpp ListOfIntervalsLists.h Polyline.cpp Polyline.h ListOfPolylines.cpp ListOfPolylines.h)
+add_executable(test_opencv main.cpp SpaceKB.cpp SpaceKB.h Interval.cpp Interval.h IntervalsList.cpp IntervalsList.h ListOfIntervalsLists.cpp ListOfIntervalsLists.h Polyline.cpp Polyline.h ListOfPolylines.cpp ListOfPolylines.h TLinearRegression.cpp TLinearRegression.h)
 
 find_package( OpenCV REQUIRED )
 include_directories( ${OpenCV_INCLUDE_DIRS} )
