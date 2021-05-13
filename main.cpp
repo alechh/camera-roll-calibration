@@ -196,7 +196,7 @@ void bubbleSort(double *values, int size)
     int index_of_last_not_nan;
     for (int i = size - 1; i >= 0; i--)
     {
-        if (!isnan(values[i]))
+        if (!std::isnan(values[i]))
         {
             index_of_last_not_nan = i;
             break;
@@ -205,13 +205,13 @@ void bubbleSort(double *values, int size)
 
     for (int i = 0; i < size; i++)
     {
-        if (isnan(values[i]))
+        if (std::isnan(values[i]))
         {
             std::swap(values[i], values[index_of_last_not_nan]);
 
             for (int j = size - 1; j >= 0; j--)
             {
-                if (!isnan(values[j]))
+                if (!std::isnan(values[j]))
                 {
                     index_of_last_not_nan = j;
                     break;
@@ -224,7 +224,7 @@ void bubbleSort(double *values, int size)
     {
         for (size_t j = 0; j + 1 < size - i; j++)
         {
-            if (values[j + 1] < values[j] && !isnan(values[j + 1]) && !isnan(values[j]))
+            if (values[j + 1] < values[j] && !std::isnan(values[j + 1]) && !std::isnan(values[j]))
             {
                 std::swap(values[j], values[j + 1]);
             }
@@ -984,11 +984,11 @@ void selectingLinesUsingGradient(T path, double resize = 1)
 
         // получение вектора точек найденных вертикальных прямых
         vector < tuple<Point, Point> > vertical_lines;
-        for (size_t i = 0; i < linearFunctions.size(); i++)
+        for (int i = 0; i < linearFunctions.size(); i++)
         {
             double delta = 0.2; // чтобы определить вертикальные прямые через угол наклона
 
-            if (!isnan(linearFunctions[i].k) && !isnan(linearFunctions[i].b) && abs(linearFunctions[i].k) < delta)
+            if (!std::isnan(linearFunctions[i].k) && !std::isnan(linearFunctions[i].b) && abs(linearFunctions[i].k) < delta)
             {
                 Point pt1, pt2;
                 tuple<Point, Point> points = getPointsOfTheLine(linearFunctions[i].k, linearFunctions[i].b);

@@ -3,11 +3,11 @@
 [![Build Status](https://travis-ci.com/alechh/test-opencv.svg?branch=master)](https://travis-ci.com/alechh/test-opencv)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/afc68918493249c4b620473bf3fccdfd)](https://www.codacy.com/gh/alechh/test-opencv/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=alechh/test-opencv&amp;utm_campaign=Badge_Grade)
 
-Repository for testing some OpenCV features
+Repository for solving the problem of online calibration of the camera roll in the coordinate system of the machine
 
 ## Requirements
-*  CMake (>= 3.17)
-*  OpenCV (>= 4.4.0)
+*    CMake (>= 3.17)
+*    OpenCV (>= 4.4.0)
 
 ## Build
 To build the project you should run these commands in the project direcroty
