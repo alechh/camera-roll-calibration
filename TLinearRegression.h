@@ -26,7 +26,6 @@ public:
     LinearFunction calculate();
     void clear();
     double eps();
-    int get_m_pointsCount();
 };
 
 

@@ -1,5 +1,8 @@
 #include "TLinearRegression.h"
 
+/**
+ * Default constructor
+ */
 TLinearRegression::TLinearRegression()
 {
     m_sumX = 0;
@@ -9,6 +12,11 @@ TLinearRegression::TLinearRegression()
     m_pointsCount = 0;
 }
 
+/**
+ * Add point to the regression
+ * @param y -- y coordinate of the point
+ * @param x -- x coordinate of the point
+ */
 void TLinearRegression::addPoint(int y, int x)
 {
     m_sumX += x;
@@ -18,6 +26,9 @@ void TLinearRegression::addPoint(int y, int x)
     ++m_pointsCount; //it can be used as weight for lines
 }
 
+/**
+ * Reset the regression
+ */
 void TLinearRegression::clear()
 {
     m_sumX = 0;
@@ -27,11 +38,11 @@ void TLinearRegression::clear()
     m_pointsCount = 0;
 }
 
-int TLinearRegression::get_m_pointsCount()
-{
-    return m_pointsCount;
-}
 
+/**
+ * Calculate the linear function x = k * y + b via the regression
+ * @return
+ */
 LinearFunction TLinearRegression::calculate()
 {
     double avrX = double(m_sumX) / m_pointsCount;
@@ -39,25 +50,10 @@ LinearFunction TLinearRegression::calculate()
     double avrXSqr = double(m_sumXSqr) / m_pointsCount;
     double avrXY = double(m_sumXY) / m_pointsCount;
 
-    // y = kx + b
+    // x = k * y + b
     double k = (avrXY - avrX * avrY) / (avrXSqr - avrX * avrX);
     double b = (avrXSqr * avrY - avrX * avrXY) / (avrXSqr - avrX * avrX);
 
-    // x = ky + b
-//    k = 1.0 / k;
-//    b = -b * k;
-
-//    double avrX = double(m_sumX) / double(m_pointsCount);
-//    double avrY = double(m_sumY) / double(m_pointsCount);
-//    double avrXSqr = double(m_sumXSqr) / double(m_pointsCount);
-//    double avrXY = double(m_sumXY) / double(m_pointsCount);
-//
-//    double k = (avrX * avrY - avrXY) / (avrX * avrX - avrXSqr);
-//    double b = (avrXY - k * avrXSqr) / avrX;
-//
-//    // Получили y=ax+b, меняем коэфициенты, чтобы получить x=ay+b
-//    k = 1.0 / k;
-//    b = -b * k;
 
     return LinearFunction{ k, b };
 }

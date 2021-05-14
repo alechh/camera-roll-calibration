@@ -2,12 +2,21 @@
 #include <opencv2/core/matx.hpp>
 
 
+/**
+ * Default constructor
+ */
 ListOfPolylines::ListOfPolylines()
 {
     this->head = nullptr;
     this->tail = head;
 }
 
+/**
+ * Add polyline to the list
+ * @param begin -- the y coordinate of the top of the vertical polyline
+ * @param end -- the y coordinate of the bottom of the vertical polyline
+ * @param column -- x coordinate of the vertical polyline
+ */
 void ListOfPolylines::addPolyline(int begin, int end, int column)
 {
     if (head == nullptr)
@@ -20,6 +29,10 @@ void ListOfPolylines::addPolyline(int begin, int end, int column)
     tail = tail->next;
 }
 
+/**
+ * Length of the list
+ * @return
+ */
 int ListOfPolylines::length()
 {
     if (head == nullptr)
@@ -36,9 +49,11 @@ int ListOfPolylines::length()
     return count;
 }
 
-
-
-std::vector<std::tuple<cv::Point, cv::Point> > ListOfPolylines::getPointOfLines()
+/**
+ * Getting the vector of the start and end points of a segment from the list
+ * @return
+ */
+std::vector<std::tuple<cv::Point, cv::Point> > ListOfPolylines::getPointsOfLines()
 {
     std::vector< std::tuple<cv::Point, cv::Point> > result;
     if (head == nullptr)
@@ -63,6 +78,9 @@ std::vector<std::tuple<cv::Point, cv::Point> > ListOfPolylines::getPointOfLines(
     return result;
 }
 
+/**
+ * Destructor
+ */
 ListOfPolylines::~ListOfPolylines()
 {
     while (head != nullptr)

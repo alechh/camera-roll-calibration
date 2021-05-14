@@ -191,9 +191,17 @@ void drawXOnImage(Mat &src, double x)
             Scalar(0, 0, 0), thickness, 8);
 }
 
+/**
+ * Simple buble sort for array of double
+ * @param values -- array of double
+ * @param size -- size of the array
+ */
 void bubbleSort(double *values, int size)
 {
+    // сперва нужно перенести все NaN в конец массива
     int index_of_last_not_nan;
+
+    // получение индекса последнего числа != nan
     for (int i = size - 1; i >= 0; i--)
     {
         if (!std::isnan(values[i]))
@@ -203,6 +211,7 @@ void bubbleSort(double *values, int size)
         }
     }
 
+    // перемещение nan в конец массива
     for (int i = 0; i < size; i++)
     {
         if (std::isnan(values[i]))
@@ -220,6 +229,7 @@ void bubbleSort(double *values, int size)
         }
     }
 
+    // сортировка
     for (size_t i = 0; i + 1 < size; i++)
     {
         for (size_t j = 0; j + 1 < size - i; j++)
@@ -682,10 +692,16 @@ bool quantitativeFilter(vector < tuple<Point, Point> > vertical_lines, int src_c
     }
 }
 
+/**
+ * Selecting the horizon line manually. Important: for each video, the result must be different
+ * @param src -- Input image
+ * @return tuple of the points of the horizon
+ */
 tuple<Point, Point> manuallySelectingHorizonLine(Mat src)
 {
     Point pt1, pt2;
 
+    // for video PATH_road3
     pt1.x = 0;
     pt1.y = src.rows / 2 + 12;
 
@@ -695,6 +711,11 @@ tuple<Point, Point> manuallySelectingHorizonLine(Mat src)
     return make_tuple(pt1, pt2);
 }
 
+/**
+ * Calculating the vanishing point of straight road markings
+ * @param roadMarkings -- vector of straight line point pairs of road markings
+ * @return vanishing point
+ */
 Point findVanishingPointLane( vector< tuple<Point, Point> > roadMarkings)
 {
     vector< tuple<double, double> > coefficientsKB;
@@ -724,12 +745,19 @@ Point findVanishingPointLane( vector< tuple<Point, Point> > roadMarkings)
     // можно пользоваться заранее вычисленной точкой, а можно вычислять ее онлайн
      van_point_lane.x = result_x;
      van_point_lane.y = result_y;
+
+     // for video PATH_road3
 //    van_point_lane.x = 586;
 //    van_point_lane.y = 428;
 
     return van_point_lane;
 }
 
+/**
+ * Calculating road marking lines from an image
+ * @param src -- Input image
+ * @return vector of straight line point pairs of road markings
+ */
 vector< tuple<Point, Point> > findRoadMarkingLines(Mat &src)
 {
     Mat src_canny;
@@ -807,26 +835,35 @@ vector< tuple<Point, Point> > findRoadMarkingLines(Mat &src)
         }
     }
 
+    // draw lines
 //    for (auto & road_line : roadMarkings)
 //    {
 //        line(src, get<0>(road_line), get<1>(road_line), Scalar(255, 255, 255), 2);
 //    }
 
-    // src.release();
     src_hsv.release();
     src_canny.release();
 
     return roadMarkings;
 }
 
-
+/**
+ * Distance from a point to a straight line
+ * @param pnt -- Point
+ * @param f -- Linear function x = k * y + b
+ * @return  distance
+ */
 double distToLine(Point pnt, LinearFunction f)
 {
     // distance from point to line x - f.k * y - f.c = 0
     return abs(double(pnt.x) - f.k * double(pnt.y) - f.b) / (sqrt(1 + f.k * f.k));
 }
 
-
+/**
+ * Calculating linear regressions based on contour points
+ * @param m_points -- Points of the contour
+ * @return vector of TLinearRegression
+ */
 vector<TLinearRegression> calcRegressions(vector<Point> m_points)
 {
     vector<TLinearRegression> regressions;
@@ -889,6 +926,12 @@ vector<TLinearRegression> calcRegressions(vector<Point> m_points)
     return regressions;
 }
 
+/**
+ * Getting two points of a straight line x = k * y + b through the coefficients k,b
+ * @param k -- the angle of inclination is straight
+ * @param b -- offset
+ * @return a tuple of straight points
+ */
 tuple<Point, Point> getPointsOfTheLine(double k, double b)
 {
     // x = k * y + b.
@@ -903,7 +946,11 @@ tuple<Point, Point> getPointsOfTheLine(double k, double b)
     return make_tuple(pt1, pt2);
 }
 
-
+/**
+ * Obtaining a vector of linear functions x = k * y + b via linear regression over contours
+ * @param contours -- vector of contours
+ * @return vector of LinearFunctions x = k * y + b
+ */
 vector <LinearFunction> linearRegressionForContours(vector< vector<Point> > contours)
 {
     vector <LinearFunction> linearFunctions; // вектор коэффициентов {k, b} линейных функций x = k * y + b
@@ -929,7 +976,11 @@ vector <LinearFunction> linearRegressionForContours(vector< vector<Point> > cont
     return linearFunctions;
 }
 
-
+/**
+ * Getting a vector of pairs of straight points from a vector of linear functions
+ * @param linearFunctions -- vector of Linear Functions x = k * y + b
+ * @return vector of tuple of points of the straight lines
+ */
 vector < tuple<Point, Point> > findVectorOfPointsOfVerticalLines(vector <LinearFunction> linearFunctions)
 {
     vector < tuple<Point, Point> > vertical_lines;

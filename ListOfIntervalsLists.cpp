@@ -1,11 +1,17 @@
 #include "ListOfIntervalsLists.h"
 
+/**
+ * Default constructor
+ */
 ListOfIntervalsLists::ListOfIntervalsLists()
 {
     head = nullptr;
     tail = head;
 }
 
+/**
+ * Destructor
+ */
 ListOfIntervalsLists::~ListOfIntervalsLists()
 {
     while (head != nullptr)
@@ -16,6 +22,10 @@ ListOfIntervalsLists::~ListOfIntervalsLists()
     }
 }
 
+/**
+ * Add interval list to the list of interval lists
+ * @param newIntervalList -- Pointer to the interval list
+ */
 void ListOfIntervalsLists::addIntervalList(IntervalsList *newIntervalList)
 {
     if (head == nullptr)
@@ -28,6 +38,9 @@ void ListOfIntervalsLists::addIntervalList(IntervalsList *newIntervalList)
     tail = tail->next;
 }
 
+/**
+ * Length of the list
+ */
 int ListOfIntervalsLists::get_length()
 {
     if (head == nullptr)

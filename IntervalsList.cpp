@@ -1,6 +1,9 @@
 #include "IntervalsList.h"
 #include <iostream>
 
+/**
+ * Default constructor
+ */
 IntervalsList::IntervalsList()
 {
     head = nullptr;
@@ -8,7 +11,9 @@ IntervalsList::IntervalsList()
     next = nullptr;
 }
 
-
+/**
+ * Destructor
+ */
 IntervalsList::~IntervalsList()
 {
     while (head != nullptr)
@@ -19,7 +24,14 @@ IntervalsList::~IntervalsList()
     }
 }
 
-
+/**
+ * Add interval to the list
+ * @param begin -- x coordinate of the begin of the new interval
+ * @param end -- x coordinate of the end of the new interval
+ * @param y_coordinate -- y coordinate of the new interval
+ * @param cluster_num -- number of cluster
+ * @param color -- the color of the cluster that the interval belongs to
+ */
 void IntervalsList::addInterval(int begin, int end, int y_coordinate, int cluster_num, cv::Vec3b color)
 {
     if (head == nullptr)
@@ -32,6 +44,10 @@ void IntervalsList::addInterval(int begin, int end, int y_coordinate, int cluste
     tail = tail->next;
 }
 
+/**
+ * Add interval to the list
+ * @param newInterval -- Pointer to the interval
+ */
 void IntervalsList::addInterval(Interval *newInterval)
 {
     if (head == nullptr)
@@ -44,7 +60,10 @@ void IntervalsList::addInterval(Interval *newInterval)
     tail = tail->next;
 }
 
-
+/**
+ * Length of the list
+ * @return
+ */
 int IntervalsList::getLength()
 {
     if (this->head == nullptr)
@@ -59,33 +78,4 @@ int IntervalsList::getLength()
         temp = temp->next;
     }
     return res;
-}
-
-void IntervalsList::print()
-{
-    if (this->head == nullptr)
-    {
-        return;
-    }
-    Interval *temp = head;
-    while (temp != nullptr)
-    {
-        std::cout << "[" << temp->begin << "," << temp->end << "]";
-        if (temp->next != nullptr)
-        {
-            std::cout << " -> ";
-        }
-        temp = temp->next;
-    }
-    std::cout << std::endl;
-}
-
-void IntervalsList::clearList()
-{
-    while (head != nullptr)
-    {
-        Interval* oldHead = head;
-        head = head->next;
-        delete oldHead;
-    }
 }

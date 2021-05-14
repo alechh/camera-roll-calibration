@@ -13,7 +13,7 @@ struct ListOfPolylines
     ~ListOfPolylines();
     void addPolyline(int begin, int end, int column);
     int length();
-    std::vector < std::tuple<cv::Point, cv::Point> > getPointOfLines();
+    std::vector < std::tuple<cv::Point, cv::Point> > getPointsOfLines();
 
 };
 

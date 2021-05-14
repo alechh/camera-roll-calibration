@@ -1,23 +1,15 @@
 #include "SpaceKB.h"
-#include <iostream>
 #include <tuple>
 #include <utility>
 
 // Constructor
 SpaceKB::SpaceKB(vector< tuple<double, double> > points): points(std::move(points)) {};
 
-void SpaceKB::print_points()
-{
-    cout << "---------------------------------------" << endl;
-
-    for (const auto & point : points)
-    {
-        std::cout << get<0>(point) << " ; " << get<1>(point) << endl;
-    }
-
-    cout << "---------------------------------------" << endl;
-}
-
+/**
+ * Calculation of the approximating line through linear regression over points in KB space
+ * @param approaching_x
+ * @param approaching_y
+ */
 void SpaceKB::approaching_straight_line(double &approaching_x, double &approaching_y)
 {
     int n = points.size();
