@@ -430,7 +430,6 @@ void vectorisation(Mat &src, Mat &dst)
     auto *listOfIntervalsLists = new ListOfIntervalsLists;
     int begin = 0;
     int end;
-    int cluster_num = 1;
 
     // заполняем список списков интервалов для первой строки
     for (int j = 1; j < src.cols; j++)
@@ -439,31 +438,28 @@ void vectorisation(Mat &src, Mat &dst)
         {
             end = j - 1;
             auto *intervalList = new IntervalsList;
-            intervalList->addInterval(begin, end, 0, cluster_num, src.at<Vec3b>(0, j - 1));
+            intervalList->addInterval(begin, end, 0, src.at<Vec3b>(0, j - 1));
             begin = j;
-            cluster_num++;
 
             listOfIntervalsLists->addIntervalList(intervalList);
         }
     }
     // последний интервал в первой строке
     auto *intervalList = new IntervalsList;
-    intervalList->addInterval(begin, src.cols - 1, 0, cluster_num, src.at<Vec3b>(0, src.cols - 1));
-    cluster_num++;
+    intervalList->addInterval(begin, src.cols - 1, 0, src.at<Vec3b>(0, src.cols - 1));
     listOfIntervalsLists->addIntervalList(intervalList);
 
     // заполняем списки интервалов для остальных строк
     for (int i = 1; i < src.rows; i++)
     {
         // заполним первый интервал мусорными значениями (не добавляем его в список)
-        auto *currInterval = new Interval(-1, -1, -1, -1, src.at<Vec3b>(0, 0));
+        auto *currInterval = new Interval(-1, -1, -1, src.at<Vec3b>(0, 0));
 
         IntervalsList *currIntervalList = listOfIntervalsLists->head;
 
         int prevIntervalEnd = currIntervalList->tail->end;  // эта переменная нужна для своевременного сдвига текущего списка интервалов
 
         begin = 0;
-        cluster_num = 1;
 
         for (int j = 1; j < src.cols; j++)
         {
@@ -478,9 +474,8 @@ void vectorisation(Mat &src, Mat &dst)
                 }
 
                 end = j - 1;
-                currInterval = new Interval(begin, end, i, cluster_num, color);
+                currInterval = new Interval(begin, end, i, color);
                 begin = j;
-                cluster_num++;
 
                 // сравниваем найденный интервал с интервалом из списка интервалов предыдущей строки
                 // (они точно пересекаются, потому что мы вовремя двигаем указатель на список интервалов)
@@ -505,8 +500,7 @@ void vectorisation(Mat &src, Mat &dst)
         }
 
         // добавление последнего интервала строки
-        cluster_num++;
-        currInterval = new Interval(begin, src.cols - 1, i, cluster_num, src.at<Vec3b>(i, src.cols - 1));
+        currInterval = new Interval(begin, src.cols - 1, i, src.at<Vec3b>(i, src.cols - 1));
         if (currInterval->color == currIntervalList->tail->color)
         {
             currIntervalList->addInterval(currInterval);

@@ -12,7 +12,7 @@ struct IntervalsList
     IntervalsList();
     ~IntervalsList();
 
-    void addInterval(int begin, int end, int y_coordinate, int cluster_num, cv::Vec3b color);
+    void addInterval(int begin, int end, int y_coordinate, cv::Vec3b color);
     void addInterval(Interval *newInterval);
     int getLength();
 };
