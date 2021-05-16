@@ -646,6 +646,86 @@ void roiForVerticalLines(vector< tuple<Point, Point> > &lines, int x_roi, int wi
             i++;
         }
     }
+
+    //--------------------------------------------
+    // Будем удалять прямые, которые наклонены не туда, куда они должны быть наклонены.
+    // Например, если прямая слева от центра наклонена влево.
+    i = lines.begin();
+
+    while(i != lines.end())
+    {
+        Point pt1 = get<0>(*i);
+        Point pt2 = get<1>(*i);
+
+
+        int image_center = x_roi + width_roi / 2;
+
+        if (pt1.x < image_center && pt2.x < image_center)
+        {
+            // если прямая слева от центра
+
+            if (pt1.y < pt2.y)
+            {
+                // если pt1 выше, чем pt2
+
+                if (pt1.x < pt2.x)
+                {
+                    // если прямая наклонена не туда, куда нужно (это значит, что прямая нашлась неправильно)
+                    i = lines.erase(i);
+                }
+                else
+                {
+                    i++;
+                }
+            }
+            else
+            {
+                // если pt2 выше, чем pt1
+
+                if (pt2.x < pt1.x)
+                {
+                    i = lines.erase(i);
+                }
+                else
+                {
+                    i++;
+                }
+            }
+        }
+        else
+        {
+            // если прямая нашлась справа от центра
+
+            if (pt1.y < pt2.y)
+            {
+                // если pt1 выше, чем pt2
+
+                if (pt1.x > pt2.x)
+                {
+                    i = lines.erase(i);
+                }
+                else
+                {
+                    i++;
+                }
+            }
+            else
+            {
+                // если pt2 выше
+
+                if (pt2.x > pt1.x)
+                {
+                    i = lines.erase(i);
+                }
+                else
+                {
+                    i++;
+                }
+            }
+
+        }
+    }
+    //--------------------------------------------
 }
 
 /**
