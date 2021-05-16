@@ -706,6 +706,43 @@ tuple<Point, Point> manuallySelectingHorizonLine(Mat src)
 }
 
 /**
+ * Get points of the accurate horizon line
+ * @param y -- y coordinate of the horizon line
+ * @param width -- width of the image
+ * @return tuple of points of the line
+ */
+tuple<Point, Point>  getAccurateHorizonLine(int y, int width)
+{
+    Point pt1, pt2;
+
+    pt1.x = 0;
+    pt1.y = y;
+    pt2.x = width - 1;
+    pt2.y = y;
+
+    return make_tuple(pt1, pt2);
+}
+
+/**
+ * Get points of the accurate vertical line
+ * @param x -- x coordinate of the vertical line
+ * @param height -- height of the image
+ * @return tuple of points of the line
+ */
+tuple<Point, Point> getAccurateVerticalLine(int x, int height)
+{
+    Point pt1, pt2;
+
+    pt1.x = x;
+    pt1.y = 0;
+
+    pt2.x = x;
+    pt2.y = height - 1;
+
+    return make_tuple(pt1, pt2);
+}
+
+/**
  * Calculating the vanishing point of straight road markings
  * @param roadMarkings -- vector of straight line point pairs of road markings
  * @return vanishing point
@@ -737,12 +774,12 @@ Point findVanishingPointLane( vector< tuple<Point, Point> > roadMarkings)
     Point van_point_lane;
 
     // можно пользоваться заранее вычисленной точкой, а можно вычислять ее онлайн
-     van_point_lane.x = result_x;
-     van_point_lane.y = result_y;
+//     van_point_lane.x = result_x;
+//     van_point_lane.y = result_y;
 
      // for video PATH_road3
-//    van_point_lane.x = 586;
-//    van_point_lane.y = 428;
+    van_point_lane.x = 586;
+    van_point_lane.y = 428;
 
     return van_point_lane;
 }
@@ -981,7 +1018,7 @@ vector < tuple<Point, Point> > findVectorOfPointsOfVerticalLines(vector <LinearF
 
     for (int i = 0; i < linearFunctions.size(); i++)
     {
-        double delta = 0.2; // чтобы определить вертикальные прямые через угол наклона
+        double delta = 0.05; // чтобы определить вертикальные прямые через угол наклона
 
         if (!std::isnan(linearFunctions[i].k) && !std::isnan(linearFunctions[i].b) && abs(linearFunctions[i].k) < delta)
         {
@@ -996,6 +1033,50 @@ vector < tuple<Point, Point> > findVectorOfPointsOfVerticalLines(vector <LinearF
     }
 
     return vertical_lines;
+}
+
+/**
+ * Get angle between two straight lines
+ * @param pt11 -- Point of the first line l1
+ * @param pt12 -- Point of the first line l1
+ * @param pt21 -- Point of the second line l2
+ * @param pt22 -- Point of the second line l2
+ * @return angle in degrees between l1 and l2
+ */
+double angleBetweenStraightLines(Point pt11, Point pt12, Point pt21, Point pt22)
+{
+    // y = k * x + b
+    double k1, b1, k2, b2;
+
+    if (pt12.x - pt11.x == 0)
+    {
+        // если прямая вертикальная
+        k1 = pt11.x;
+        b1 = 0;
+    }
+    else
+    {
+        k1 = double(pt12.y - pt11.y) / (pt12.x - pt11.x);
+        b1 = - pt11.x * double(pt12.y - pt11.y) / (pt12.x - pt11.x) + pt11.y;
+    }
+
+    if (pt22.x - pt21.x == 0)
+    {
+        // если прямая вертикальная
+        k2 = pt21.x;
+        b2 = 0;
+    }
+    else
+    {
+        k2 = double(pt22.y - pt21.y) / (pt22.x - pt21.x);
+        b2 = - pt21.x * double(pt22.y - pt21.y) / (pt22.x - pt21.x) + pt21.y;
+    }
+
+
+    double angle_radian =  abs(atan((k2 - k1) / (1 + k2 * k1)));
+    double angle_degree = angle_radian * (180.0 / CV_PI);
+
+    return angle_degree;
 }
 
 
@@ -1018,7 +1099,7 @@ void selectingLinesUsingGradient(T path, double resize = 1)
 //     outputVideo.open("../result.mp4", ex, capture.get(CAP_PROP_FPS), S, true);
 
     int medianCount = 1;  // Счетчик для медианного фильтра
-    const int NUMBER_OF_MEDIAN_VALUES = 10;  // Раз во сколько кадров проводим медианный фильтр
+    const int NUMBER_OF_MEDIAN_VALUES = 4;  // Раз во сколько кадров проводим медианный фильтр
     double valuesForMedianFilterX[NUMBER_OF_MEDIAN_VALUES - 1]; // массив значений координат x, который будет сортироваться для медианного фильтра
     double valuesForMedianFilterY[NUMBER_OF_MEDIAN_VALUES - 1]; // массив значений координат y, чтобы после медианного фильтра восстановить точку van_point_verticals
     double medianResult_x = 0;  // медианное значение для точки схода
@@ -1071,7 +1152,7 @@ void selectingLinesUsingGradient(T path, double resize = 1)
         roiForVerticalLines(vertical_lines, x_roi, width_roi);
 
         // отрисовка прямых
-        // drawLines(src, vertical_lines);
+        drawLines(src, vertical_lines);
 
         // медианный фильтр
         if (medianCount % NUMBER_OF_MEDIAN_VALUES == 0)
@@ -1095,10 +1176,11 @@ void selectingLinesUsingGradient(T path, double resize = 1)
         {
             //проверяем, что нашлось примерно поровну прямых слева и справа
             double quantityFactor = 1.5;
-            if (quantitativeFilter(vertical_lines, src.cols / 2, quantityFactor))
-            {
-                makeSpaceKB(result_x, result_y, vertical_lines);
-            }
+//            if (quantitativeFilter(vertical_lines, src.cols / 2, quantityFactor))
+//            {
+//                makeSpaceKB(result_x, result_y, vertical_lines);
+//            }
+            makeSpaceKB(result_x, result_y, vertical_lines);
 
             valuesForMedianFilterX[medianCount - 1] = result_x;
             valuesForMedianFilterY[medianCount - 1] = result_y;
@@ -1111,12 +1193,27 @@ void selectingLinesUsingGradient(T path, double resize = 1)
         Point van_point_lane = findVanishingPointLane(roadMarkings);
 
         // получение линии горизонта, размеченной вручную
-        tuple<Point, Point> horizonLine = manuallySelectingHorizonLine(src);
-        Point horizon_pt1 = get<0>(horizonLine);
-        Point horizon_pt2 = get<1>(horizonLine);
+        tuple<Point, Point> currentHorizonLine = manuallySelectingHorizonLine(src);
+        Point currentHorizon_pt1 = get<0>(currentHorizonLine);
+        Point currentHorizon_pt2 = get<1>(currentHorizonLine);
+
+        tuple<Point, Point> accurateHorizonLine = getAccurateHorizonLine(currentHorizon_pt1.y, src.cols);
+        Point accurateHorizon_pt1 = get<0>(accurateHorizonLine);
+        Point accurateHorizon_pt2 = get<1>(accurateHorizonLine);
+
+        tuple<Point, Point> accurateVerticalLine = getAccurateVerticalLine(van_point_lane.x, src.rows);
+        Point accurateVertical_pt1 = get<0>(accurateVerticalLine);
+        Point accurateVertical_pt2 = get<1>(accurateVerticalLine);
 
         line(src, van_point_lane, van_point_verticals, Scalar(255, 0, 0), 1, LINE_AA);
-        line(src, horizon_pt1, horizon_pt2, Scalar(0, 0, 255), 1, LINE_AA);
+        //line(src, currentHorizon_pt1, currentHorizon_pt2, Scalar(0, 0, 255), 1, LINE_AA);
+
+        // line(src, accurateVertical_pt1, accurateVertical_pt2, Scalar(255, 0, 0), 1, LINE_AA);
+        // line(src, accurateHorizon_pt1, accurateHorizon_pt2, Scalar(0, 0, 255), 1, LINE_AA);
+
+        double angle_vertical = angleBetweenStraightLines(van_point_lane, van_point_verticals, accurateVertical_pt1, accurateVertical_pt2);
+        double angle_horizon = angleBetweenStraightLines(currentHorizon_pt1, currentHorizon_pt2, accurateHorizon_pt1, accurateHorizon_pt2);
+        cout << abs(angle_vertical - angle_horizon) << endl;
 
         imshow("src", src);
 
