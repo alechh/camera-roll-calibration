@@ -143,7 +143,7 @@ vector<Vec2f> findLinesHough(Mat &src)
     //cvtColor(src, src_gray, COLOR_BGR2GRAY);  // Подготовка изображения для метода Хафа поиска прямых
     Canny(src, src_canny, 50, 200);  // Подготовка изображения для метода Хафа поиска прямых
 
-    HoughLines(src_canny, lines, 1, CV_PI / 180, 50);
+    HoughLines(src_canny, lines, 1, CV_PI / 180, 100);
 
     src_gray.release();
     src_canny.release();
@@ -166,7 +166,7 @@ void drawVerticalLine(Mat &src, double x)
 
     if (pt1.x != 0 && pt2.x != 0)
     {
-        line(src, pt1, pt2, CV_RGB(80, 222, 24), 6, CV_AA);
+        line(src, pt1, pt2, CV_RGB(250, 230, 0), 3, CV_AA);
     }
 }
 
@@ -192,7 +192,7 @@ void drawXOnImage(Mat &src, double x)
 }
 
 /**
- * Simple buble sort for array of double
+ * Simple bubble sort for array of double
  * @param values -- array of double
  * @param size -- size of the array
  */
@@ -255,81 +255,6 @@ double medianFilter(double *valuesForMedianFilter, const int NUMBER_OF_MEDIAN_VA
     bubbleSort(valuesForMedianFilter, NUMBER_OF_MEDIAN_VALUES);
 
     return valuesForMedianFilter[indexOfResult];
-}
-
-
-/**
- * Function of finding straight vertical lines using Hough method
- * @tparam T
- * @param path -- path to the video file. 0 means that the video will be read from the webcam.
- * @param resize -- image resizing factor.
- */
-template <class T>
-void selectingLinesUsingHoughMethod(T path, double resize = 1)
-{
-    VideoCapture capture(path);
-    if (!capture.isOpened())
-    {
-        cerr<<"Error"<<endl;
-        return;
-    }
-
-    Mat src;
-
-    int n = 1;  // Счетчик для медианного фильтра
-    const int NUMBER_OF_MEDIAN_VALUES = 20;  // Раз во сколько кадров проводим медианный фильтр
-    double valuesForMedianFilter[NUMBER_OF_MEDIAN_VALUES - 1];  // Массив значений, который будет сортироваться для медианного фильтра
-    double prevResult_x = 0;  // Сохранение предыдущего значения, чтобы выводить на экран
-
-    while (true)
-    {
-        capture >> src;
-
-        vector<Vec2f> lines = findLinesHough(src);  // нахождение прямых линий
-
-        vector <tuple<Point, Point>> vertical_lines = selectionOfVerticalLines(lines);  // выбор только вертикальных линий
-
-        drawLines(src, vertical_lines);  // отрисовка прямых линий
-
-        double result_x = 0;  // Вычисленная координата x точки схода прямых
-        double result_y = 0;
-
-        makeSpaceKB(result_x, result_y, vertical_lines);  // построение пространства Kb, чтобы найти приближающую прямую через
-                                                  // линейную регрессию. Далее обратным отображением находим точку схода прямых
-
-        if (n % NUMBER_OF_MEDIAN_VALUES == 0)  // Если нужно провести медианный фильтр
-        {
-            prevResult_x = medianFilter(valuesForMedianFilter, NUMBER_OF_MEDIAN_VALUES);
-        }
-        else
-        {
-            valuesForMedianFilter[n - 1] = result_x;
-        }
-
-        drawVerticalLine(src, prevResult_x);
-
-        if (resize != 1)
-        {
-            cv::resize(src, src, cv::Size(), resize, resize);
-        }
-
-        imshow("Result", src);
-
-        if (n % NUMBER_OF_MEDIAN_VALUES == 0)
-        {
-            n = 1;
-        }
-        else
-        {
-            n++;
-        }
-
-        int k = waitKey(25);
-        if (k == 27)
-        {
-            break;
-        }
-    }
 }
 
 /**
@@ -397,7 +322,7 @@ void makePolylines(Mat &src, Mat &dst, int delta = 10, int x_roi = 0, int width_
         }
     }
 
-    // выводим вериткальные отрезки на изображение
+    // выводим вертикальные отрезки на изображение
     Polyline *currPolyline = listOfPolylines->head;
     while (currPolyline)
     {
@@ -650,81 +575,81 @@ void roiForVerticalLines(vector< tuple<Point, Point> > &lines, int x_roi, int wi
     //--------------------------------------------
     // Будем удалять прямые, которые наклонены не туда, куда они должны быть наклонены.
     // Например, если прямая слева от центра наклонена влево.
-    i = lines.begin();
-
-    while(i != lines.end())
-    {
-        Point pt1 = get<0>(*i);
-        Point pt2 = get<1>(*i);
-
-
-        int image_center = x_roi + width_roi / 2;
-
-        if (pt1.x < image_center && pt2.x < image_center)
-        {
-            // если прямая слева от центра
-
-            if (pt1.y < pt2.y)
-            {
-                // если pt1 выше, чем pt2
-
-                if (pt1.x < pt2.x)
-                {
-                    // если прямая наклонена не туда, куда нужно (это значит, что прямая нашлась неправильно)
-                    i = lines.erase(i);
-                }
-                else
-                {
-                    i++;
-                }
-            }
-            else
-            {
-                // если pt2 выше, чем pt1
-
-                if (pt2.x < pt1.x)
-                {
-                    i = lines.erase(i);
-                }
-                else
-                {
-                    i++;
-                }
-            }
-        }
-        else
-        {
-            // если прямая нашлась справа от центра
-
-            if (pt1.y < pt2.y)
-            {
-                // если pt1 выше, чем pt2
-
-                if (pt1.x > pt2.x)
-                {
-                    i = lines.erase(i);
-                }
-                else
-                {
-                    i++;
-                }
-            }
-            else
-            {
-                // если pt2 выше
-
-                if (pt2.x > pt1.x)
-                {
-                    i = lines.erase(i);
-                }
-                else
-                {
-                    i++;
-                }
-            }
-
-        }
-    }
+//    i = lines.begin();
+//
+//    while(i != lines.end())
+//    {
+//        Point pt1 = get<0>(*i);
+//        Point pt2 = get<1>(*i);
+//
+//
+//        int image_center = x_roi + width_roi / 2;
+//
+//        if (pt1.x < image_center && pt2.x < image_center)
+//        {
+//            // если прямая слева от центра
+//
+//            if (pt1.y < pt2.y)
+//            {
+//                // если pt1 выше, чем pt2
+//
+//                if (pt1.x < pt2.x)
+//                {
+//                    // если прямая наклонена не туда, куда нужно (это значит, что прямая нашлась неправильно)
+//                    i = lines.erase(i);
+//                }
+//                else
+//                {
+//                    i++;
+//                }
+//            }
+//            else
+//            {
+//                // если pt2 выше, чем pt1
+//
+//                if (pt2.x < pt1.x)
+//                {
+//                    i = lines.erase(i);
+//                }
+//                else
+//                {
+//                    i++;
+//                }
+//            }
+//        }
+//        else
+//        {
+//            // если прямая нашлась справа от центра
+//
+//            if (pt1.y < pt2.y)
+//            {
+//                // если pt1 выше, чем pt2
+//
+//                if (pt1.x > pt2.x)
+//                {
+//                    i = lines.erase(i);
+//                }
+//                else
+//                {
+//                    i++;
+//                }
+//            }
+//            else
+//            {
+//                // если pt2 выше
+//
+//                if (pt2.x > pt1.x)
+//                {
+//                    i = lines.erase(i);
+//                }
+//                else
+//                {
+//                    i++;
+//                }
+//            }
+//
+//        }
+//    }
     //--------------------------------------------
 }
 
@@ -1058,6 +983,34 @@ tuple<Point, Point> getPointsOfTheLine(double k, double b)
 }
 
 /**
+ * Getting a vector of pairs of straight points from a vector of linear functions
+ * @param linearFunctions -- vector of Linear Functions x = k * y + b
+ * @return vector of tuple of points of the straight lines
+ */
+vector < tuple<Point, Point> > findVectorOfPointsOfVerticalLines(vector <LinearFunction> linearFunctions)
+{
+    vector < tuple<Point, Point> > vertical_lines;
+
+    for (int i = 0; i < linearFunctions.size(); i++)
+    {
+        double delta = 0.05; // чтобы определить вертикальные прямые через угол наклона
+
+        if (!std::isnan(linearFunctions[i].k) && !std::isnan(linearFunctions[i].b) && abs(linearFunctions[i].k) < delta)
+        {
+            Point pt1, pt2;
+            tuple<Point, Point> points = getPointsOfTheLine(linearFunctions[i].k, linearFunctions[i].b);
+
+            pt1 = get<0>(points);
+            pt2 = get<1>(points);
+
+            vertical_lines.template emplace_back(make_tuple(pt1, pt2));
+        }
+    }
+
+    return vertical_lines;
+}
+
+/**
  * Obtaining a vector of linear functions x = k * y + b via linear regression over contours
  * @param contours -- vector of contours
  * @return vector of LinearFunctions x = k * y + b
@@ -1085,34 +1038,6 @@ vector <LinearFunction> linearRegressionForContours(vector< vector<Point> > cont
     }
 
     return linearFunctions;
-}
-
-/**
- * Getting a vector of pairs of straight points from a vector of linear functions
- * @param linearFunctions -- vector of Linear Functions x = k * y + b
- * @return vector of tuple of points of the straight lines
- */
-vector < tuple<Point, Point> > findVectorOfPointsOfVerticalLines(vector <LinearFunction> linearFunctions)
-{
-    vector < tuple<Point, Point> > vertical_lines;
-
-    for (int i = 0; i < linearFunctions.size(); i++)
-    {
-        double delta = 0.05; // чтобы определить вертикальные прямые через угол наклона
-
-        if (!std::isnan(linearFunctions[i].k) && !std::isnan(linearFunctions[i].b) && abs(linearFunctions[i].k) < delta)
-        {
-            Point pt1, pt2;
-            tuple<Point, Point> points = getPointsOfTheLine(linearFunctions[i].k, linearFunctions[i].b);
-
-            pt1 = get<0>(points);
-            pt2 = get<1>(points);
-
-            vertical_lines.template emplace_back(make_tuple(pt1, pt2));
-        }
-    }
-
-    return vertical_lines;
 }
 
 /**
@@ -1159,9 +1084,141 @@ double angleBetweenStraightLines(Point pt11, Point pt12, Point pt21, Point pt22)
     return angle_degree;
 }
 
+/**
+ * Function of finding straight vertical lines using Hough method
+ * @tparam T
+ * @param path -- path to the video file. 0 means that the video will be read from the webcam.
+ * @param resize -- image resizing factor.
+ */
+template <class T>
+void selectingLinesUsingHoughMethod(T path, double eps, int max_frame_number, int &numberOfSuccessfulFrames, double resize = 1)
+{
+    VideoCapture capture(path);
+    if (!capture.isOpened())
+    {
+        cerr<<"Error"<<endl;
+        return;
+    }
+
+    Mat src;
+
+    int frame_counter = 0;
+    int n = 1;  // Счетчик для медианного фильтра
+    const int NUMBER_OF_MEDIAN_VALUES = 4;  // Раз во сколько кадров проводим медианный фильтр
+    double valuesForMedianFilterX[NUMBER_OF_MEDIAN_VALUES - 1];  // Массив значений, который будет сортироваться для медианного фильтра
+    double valuesForMedianFilterY[NUMBER_OF_MEDIAN_VALUES - 1];
+    double prevResult_x = 0;  // Сохранение предыдущего значения, чтобы выводить на экран
+    Point van_point_verticals;
+
+    while (true)
+    {
+        capture >> src;
+        frame_counter++;
+
+        vector<Vec2f> lines = findLinesHough(src);  // нахождение прямых линий
+
+        vector <tuple<Point, Point>> vertical_lines = selectionOfVerticalLines(lines);  // выбор только вертикальных линий
+
+        drawLines(src, vertical_lines);  // отрисовка прямых линий
+
+        double result_x = 0;  // Вычисленная координата x точки схода прямых
+        double result_y = 0;
+
+        makeSpaceKB(result_x, result_y, vertical_lines);  // построение пространства Kb, чтобы найти приближающую прямую через
+        // линейную регрессию. Далее обратным отображением находим точку схода прямых
+
+        if (n % NUMBER_OF_MEDIAN_VALUES == 0)  // Если нужно провести медианный фильтр
+        {
+            prevResult_x = medianFilter(valuesForMedianFilterX, NUMBER_OF_MEDIAN_VALUES);
+
+            // так как медианный фильтр делаем по координатам x, надо координате x сопоставить соответствующий y
+            for (int i = 0; i < NUMBER_OF_MEDIAN_VALUES - 1; i++)
+            {
+                if (valuesForMedianFilterX[i] == prevResult_x)
+                {
+                    van_point_verticals.x = prevResult_x;
+                    van_point_verticals.y = valuesForMedianFilterY[i];
+                    break;
+                }
+            }
+        }
+        else
+        {
+            valuesForMedianFilterX[n - 1] = result_x;
+            valuesForMedianFilterY[n - 1] = result_y;
+        }
+
+        // drawVerticalLine(src, prevResult_x);
+
+        if (resize != 1)
+        {
+            cv::resize(src, src, cv::Size(), resize, resize);
+        }
+
+        if (n % NUMBER_OF_MEDIAN_VALUES == 0)
+        {
+            n = 1;
+        }
+        else
+        {
+            n++;
+        }
+
+        // нахождение линий дорожной разметки
+        vector< tuple<Point, Point> > roadMarkings = findRoadMarkingLines(src);
+
+        // определение точки пересечения дорожной разметки
+        Point van_point_lane = findVanishingPointLane(roadMarkings);
+
+        // получение линии горизонта, размеченной вручную
+        tuple<Point, Point> currentHorizonLine = manuallySelectingHorizonLine(src);
+        Point currentHorizon_pt1 = get<0>(currentHorizonLine);
+        Point currentHorizon_pt2 = get<1>(currentHorizonLine);
+
+        // получение горизонтальной линии
+        tuple<Point, Point> accurateHorizonLine = getAccurateHorizonLine(currentHorizon_pt1.y, src.cols);
+        Point accurateHorizon_pt1 = get<0>(accurateHorizonLine);
+        Point accurateHorizon_pt2 = get<1>(accurateHorizonLine);
+
+        // получение вертикальное линии
+        tuple<Point, Point> accurateVerticalLine = getAccurateVerticalLine(van_point_lane.x, src.rows);
+        Point accurateVertical_pt1 = get<0>(accurateVerticalLine);
+        Point accurateVertical_pt2 = get<1>(accurateVerticalLine);
+
+        line(src, van_point_lane, van_point_verticals, Scalar(255, 0, 0), 1, LINE_AA);
+        line(src, currentHorizon_pt1, currentHorizon_pt2, Scalar(0, 0, 255), 1, LINE_AA);
+
+        // line(src, accurateVertical_pt1, accurateVertical_pt2, Scalar(255, 0, 0), 1, LINE_AA);
+        // line(src, accurateHorizon_pt1, accurateHorizon_pt2, Scalar(0, 0, 255), 1, LINE_AA);
+
+        double angle_vertical = angleBetweenStraightLines(van_point_lane, van_point_verticals, accurateVertical_pt1, accurateVertical_pt2);
+        double angle_horizon = angleBetweenStraightLines(currentHorizon_pt1, currentHorizon_pt2, accurateHorizon_pt1, accurateHorizon_pt2);
+
+        double error_rate = abs(angle_vertical - angle_horizon);
+
+        if (error_rate < eps)
+        {
+            numberOfSuccessfulFrames++;
+        }
+
+        // cout << frame_counter << endl;
+        if (frame_counter == max_frame_number)
+        {
+            break;
+        }
+
+        //imshow("Result", src);
+
+        int k = waitKey(25);
+        if (k == 27)
+        {
+            break;
+        }
+    }
+}
 
 template <class T>
-void selectingLinesUsingGradient(T path, double resize = 1)
+void selectingLinesUsingGradient(T path, double eps, int max_frame_number, int &numberOfSuccessfulFrames,  double resize = 1)
 {
     VideoCapture capture(path);
     if (!capture.isOpened())
@@ -1189,9 +1246,12 @@ void selectingLinesUsingGradient(T path, double resize = 1)
 
     Point van_point_verticals; // точка схода прямых
 
+    int frame_counter = 0;
+
     while (true)
     {
         capture >> src;
+        frame_counter++;
 
         // задаем roi, чтобы отсечь неинтересующие прямые
         int x_roi = src.cols / 4; // где начинается roi
@@ -1209,11 +1269,11 @@ void selectingLinesUsingGradient(T path, double resize = 1)
 
         // отбираем вертикальные отрезки, преобразовав границы кластеров в отрезки
         Mat src_polylines(src.rows, src.cols, src.type(), Scalar(255, 255, 255));
-        makePolylines(src_vectorization, src_polylines, 15, x_roi, width_roi);
+        makePolylines(src_vectorization, src_polylines, 10, x_roi, width_roi);
 
         // выделяем контуры
         cvtColor(src_polylines, src_polylines, COLOR_BGR2GRAY);
-        Canny(src_polylines, src_polylines, 30, 200);
+        Canny(src_polylines, src_polylines, 100, 200);
         vector< vector<Point> > contours;
         findContours(src_polylines, contours, RETR_LIST, CHAIN_APPROX_NONE);
 
@@ -1223,7 +1283,7 @@ void selectingLinesUsingGradient(T path, double resize = 1)
         // получение вектора точек найденных вертикальных прямых
         vector < tuple<Point, Point> > vertical_lines = findVectorOfPointsOfVerticalLines(linearFunctions);
 
-        // выделяем прямые по контурам методов Хафа
+        // выделяем прямые по контурам методом Хафа
         //vector<Vec2f> lines = findLinesHough(src_polylines);
         // выбор вертикальных прямых
         //vector < tuple<Point, Point> > vertical_lines = selectionOfVerticalLines(lines);
@@ -1232,7 +1292,7 @@ void selectingLinesUsingGradient(T path, double resize = 1)
         roiForVerticalLines(vertical_lines, x_roi, width_roi);
 
         // отрисовка прямых
-        drawLines(src, vertical_lines);
+        // drawLines(src, vertical_lines);
 
         // медианный фильтр
         if (medianCount % NUMBER_OF_MEDIAN_VALUES == 0)
@@ -1266,6 +1326,8 @@ void selectingLinesUsingGradient(T path, double resize = 1)
             valuesForMedianFilterY[medianCount - 1] = result_y;
         }
 
+        // drawVerticalLine(src, van_point_verticals.x);
+
         // нахождение линий дорожной разметки
         vector< tuple<Point, Point> > roadMarkings = findRoadMarkingLines(src);
 
@@ -1277,25 +1339,36 @@ void selectingLinesUsingGradient(T path, double resize = 1)
         Point currentHorizon_pt1 = get<0>(currentHorizonLine);
         Point currentHorizon_pt2 = get<1>(currentHorizonLine);
 
+        // получение горизонтальной линии
         tuple<Point, Point> accurateHorizonLine = getAccurateHorizonLine(currentHorizon_pt1.y, src.cols);
         Point accurateHorizon_pt1 = get<0>(accurateHorizonLine);
         Point accurateHorizon_pt2 = get<1>(accurateHorizonLine);
 
+        // получение вертикальное линии
         tuple<Point, Point> accurateVerticalLine = getAccurateVerticalLine(van_point_lane.x, src.rows);
         Point accurateVertical_pt1 = get<0>(accurateVerticalLine);
         Point accurateVertical_pt2 = get<1>(accurateVerticalLine);
 
-        line(src, van_point_lane, van_point_verticals, Scalar(255, 0, 0), 1, LINE_AA);
-        //line(src, currentHorizon_pt1, currentHorizon_pt2, Scalar(0, 0, 255), 1, LINE_AA);
+        //line(src, van_point_lane, van_point_verticals, Scalar(255, 0, 0), 1, LINE_AA);
+        line(src, currentHorizon_pt1, currentHorizon_pt2, Scalar(0, 0, 255), 1, LINE_AA);
 
         // line(src, accurateVertical_pt1, accurateVertical_pt2, Scalar(255, 0, 0), 1, LINE_AA);
         // line(src, accurateHorizon_pt1, accurateHorizon_pt2, Scalar(0, 0, 255), 1, LINE_AA);
 
         double angle_vertical = angleBetweenStraightLines(van_point_lane, van_point_verticals, accurateVertical_pt1, accurateVertical_pt2);
         double angle_horizon = angleBetweenStraightLines(currentHorizon_pt1, currentHorizon_pt2, accurateHorizon_pt1, accurateHorizon_pt2);
-        cout << abs(angle_vertical - angle_horizon) << endl;
 
-        imshow("src", src);
+        double error_rate = abs(angle_vertical - angle_horizon);
+        if (error_rate < eps)
+        {
+            numberOfSuccessfulFrames++;
+        }
+
+        if (frame_counter == max_frame_number)
+        {
+            break;
+        }
+        //imshow("src", src);
 
         // увеличение счетчика для медианного фильтра
         if (medianCount % NUMBER_OF_MEDIAN_VALUES == 0)
@@ -1335,6 +1408,21 @@ int main()
     const string PATH_road2 = "../videos/road2.mp4";
     const string PATH_road3 = "../videos/road3.mp4";
 
-    //selectingLinesUsingHoughMethod(PATH_road3);
-    selectingLinesUsingGradient(PATH_road3);
+
+    for (int i = 5; i < 15; i++)
+    {
+        int numberOfSuccessfulFrames = 0;
+        double eps = double(i) / 10;
+        int max_frame_number = 500;
+
+        //selectingLinesUsingHoughMethod(PATH_road3, eps, max_frame_number, numberOfSuccessfulFrames);
+        selectingLinesUsingGradient(PATH_road3, eps, max_frame_number, numberOfSuccessfulFrames);
+
+        cout << "Epsilon = " << eps << endl;
+        cout << "\t Number of successful frames: " << numberOfSuccessfulFrames << endl;
+
+
+    }
+    return 0;
+
 }
